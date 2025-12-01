@@ -13,6 +13,7 @@ export default defineConfig({
                 student2: resolve(__dirname, 'student2.html'),
                 idea: resolve(__dirname, 'idea.html'),
                 reflection: resolve(__dirname, 'reflection.html'),
+                teacher: resolve(__dirname, 'teacher.html'),
             },
         },
     },
