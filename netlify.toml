@@ -4,9 +4,18 @@
 
 [build.environment]
   NODE_VERSION = "20"
+  NPM_FLAGS = "--legacy-peer-deps"
 
+# 멀티 페이지 애플리케이션을 위한 리다이렉트 설정
+# 각 HTML 파일에 직접 접근 가능하도록 설정
+[[redirects]]
+  from = "/"
+  to = "/index.html"
+  status = 200
+
+# 404 오류 시 index.html로 리다이렉트 (SPA 폴백)
 [[redirects]]
   from = "/*"
   to = "/index.html"
-  status = 200
+  status = 404
 
