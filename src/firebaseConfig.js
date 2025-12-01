@@ -20,6 +20,13 @@ let firebaseInitialized = false
 
 // Firebase 초기화 함수
 function initFirebase() {
+  // Firebase 모듈이 로드되었는지 확인
+  if (typeof initializeApp === 'undefined' || typeof getApps === 'undefined') {
+    console.error('Firebase 모듈을 로드할 수 없습니다. Firebase가 설치되어 있는지 확인하세요.')
+    console.error('터미널에서 다음 명령어를 실행하세요: npm install firebase')
+    return { app: null, auth: null, googleProvider: null, error: 'MODULE_NOT_LOADED' }
+  }
+
   if (firebaseInitialized && app) {
     return { app, auth, googleProvider }
   }
@@ -49,8 +56,12 @@ function initFirebase() {
           firebaseInitialized = true
         } catch (error) {
           console.error('Firebase initialization error:', error)
-          // 초기화 실패 시 null 유지
-          return { app: null, auth: null, googleProvider: null }
+          console.error('Error details:', {
+            message: error.message,
+            code: error.code,
+            stack: error.stack
+          })
+          return { app: null, auth: null, googleProvider: null, error: 'INIT_FAILED' }
         }
       } else {
         console.warn('Firebase configuration is incomplete. Please check your .env file.')
@@ -60,14 +71,25 @@ function initFirebase() {
           projectId: !firebaseConfig.projectId,
           appId: !firebaseConfig.appId
         })
-        return { app: null, auth: null, googleProvider: null }
+        console.warn('Current config values (first 10 chars):', {
+          apiKey: firebaseConfig.apiKey ? firebaseConfig.apiKey.substring(0, 10) + '...' : 'empty',
+          authDomain: firebaseConfig.authDomain || 'empty',
+          projectId: firebaseConfig.projectId || 'empty',
+          appId: firebaseConfig.appId || 'empty'
+        })
+        return { app: null, auth: null, googleProvider: null, error: 'CONFIG_INCOMPLETE' }
       }
     }
 
     return { app, auth, googleProvider }
   } catch (error) {
     console.error('Failed to initialize Firebase:', error)
-    return { app: null, auth: null, googleProvider: null }
+    console.error('Error details:', {
+      message: error.message,
+      name: error.name,
+      stack: error.stack
+    })
+    return { app: null, auth: null, googleProvider: null, error: 'UNKNOWN_ERROR' }
   }
 }
 

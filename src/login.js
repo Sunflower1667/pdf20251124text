@@ -53,6 +53,16 @@ async function loadFirebase() {
     if (auth && googleProvider) {
       return true
     }
+
+    // 에러 타입에 따라 다른 메시지 표시
+    if (firebaseResult.error === 'MODULE_NOT_LOADED') {
+      console.error('Firebase 모듈을 찾을 수 없습니다. npm install firebase를 실행했는지 확인하세요.')
+    } else if (firebaseResult.error === 'CONFIG_INCOMPLETE') {
+      console.error('Firebase 설정이 완료되지 않았습니다. .env 파일을 확인하세요.')
+    } else if (firebaseResult.error === 'INIT_FAILED') {
+      console.error('Firebase 초기화에 실패했습니다. 설정값을 확인하세요.')
+    }
+
     return false
   } catch (error) {
     console.error('Firebase loading error:', error)
@@ -64,7 +74,7 @@ async function loadFirebase() {
 loadFirebase().catch(err => {
   console.error('Failed to load Firebase on page load:', err)
   if (errorMessage) {
-    showError('Firebase가 설치되지 않았습니다. 터미널에서 "npm install firebase" 명령어를 실행해주세요.')
+    showError('Firebase를 초기화할 수 없습니다. 브라우저 콘솔(F12)을 열어 자세한 오류를 확인하세요.')
   }
 })
 
@@ -73,7 +83,7 @@ googleLoginBtn.addEventListener('click', async () => {
   if (!auth || !googleProvider || !signInWithPopup) {
     const loaded = await loadFirebase()
     if (!loaded) {
-      showError('Firebase가 설치되지 않았습니다. 터미널에서 "npm install firebase" 명령어를 실행해주세요.')
+      showError('Firebase를 초기화할 수 없습니다. 브라우저 콘솔(F12)을 열어 자세한 오류를 확인하세요.')
       return
     }
   }
