@@ -1,4 +1,6 @@
 // 학생 활동을 Firebase Firestore에 저장하는 유틸리티 함수
+import { initFirebase } from './firebaseConfig.js'
+import { getFirestore, collection, addDoc, doc, setDoc, serverTimestamp } from 'firebase/firestore'
 
 /**
  * 학생 활동을 Firebase에 저장
@@ -9,8 +11,7 @@
 export async function saveStudentActivity(type, data) {
   try {
     // Firebase 초기화
-    const { initFirebase } = await import('./firebaseConfig.js')
-    const firebaseResult = await initFirebase()
+    const firebaseResult = initFirebase()
 
     if (!firebaseResult.app) {
       console.warn('Firebase가 초기화되지 않아 활동을 저장할 수 없습니다.')
@@ -18,7 +19,6 @@ export async function saveStudentActivity(type, data) {
     }
 
     // Firestore 가져오기
-    const { getFirestore, collection, addDoc, doc, setDoc, serverTimestamp } = await import('firebase/firestore')
     const db = getFirestore(firebaseResult.app)
 
     // 사용자 정보 가져오기

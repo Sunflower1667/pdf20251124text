@@ -1,10 +1,10 @@
 import './login.css'
 import { initFirebase } from './firebaseConfig.js'
+import { signInWithPopup } from 'firebase/auth'
 
 // Firebase 관련 변수들
 let auth = null
 let googleProvider = null
-let signInWithPopup = null
 
 const appEl = document.querySelector('#app')
 
@@ -46,14 +46,11 @@ const errorMessage = document.querySelector('#error-message')
 // Firebase 로드 함수
 async function loadFirebase() {
   try {
-    const firebaseResult = await initFirebase()
+    const firebaseResult = initFirebase()
     auth = firebaseResult.auth
     googleProvider = firebaseResult.googleProvider
 
     if (auth && googleProvider) {
-      // Firebase가 로드된 후에만 함수들 import
-      const firebaseAuth = await import('firebase/auth')
-      signInWithPopup = firebaseAuth.signInWithPopup
       return true
     }
     return false

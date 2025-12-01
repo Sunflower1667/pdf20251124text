@@ -1,5 +1,8 @@
 import './teacher.css'
 import { initFirebase } from './firebaseConfig.js'
+import { getFirestore, collection, getDocs, query, orderBy } from 'firebase/firestore'
+import { onAuthStateChanged, signInWithPopup, signOut } from 'firebase/auth'
+import { GoogleAuthProvider, getAuth } from 'firebase/auth'
 
 const app = document.querySelector('#app')
 let db = null
@@ -13,7 +16,7 @@ const ADMIN_EMAIL = import.meta.env.VITE_ADMIN_EMAIL || ''
 async function init() {
   try {
     // Firebase 초기화
-    const firebaseResult = await initFirebase()
+    const firebaseResult = initFirebase()
     auth = firebaseResult.auth
 
     if (!auth) {
@@ -22,8 +25,6 @@ async function init() {
     }
 
     // Firestore 가져오기
-    const { getFirestore } = await import('firebase/firestore')
-    const { onAuthStateChanged } = await import('firebase/auth')
     db = getFirestore(firebaseResult.app)
 
     // 디버깅: 환경 변수 확인
@@ -136,7 +137,6 @@ function showLoginView() {
 // 구글 로그인 처리
 async function handleGoogleLogin() {
   try {
-    const { getAuth, GoogleAuthProvider, signInWithPopup } = await import('firebase/auth')
     const googleProvider = new GoogleAuthProvider()
     const currentAuth = auth || getAuth()
 
@@ -218,7 +218,6 @@ function showMonitoringView(user) {
   if (logoutBtn) {
     logoutBtn.addEventListener('click', async () => {
       try {
-        const { signOut } = await import('firebase/auth')
         await signOut(auth)
         window.location.href = 'index.html'
       } catch (error) {
@@ -264,8 +263,6 @@ async function loadStudents() {
   }
 
   try {
-    const { collection, getDocs, query, orderBy } = await import('firebase/firestore')
-    
     // students 컬렉션에서 모든 문서 가져오기
     const studentsRef = collection(db, 'students')
     const studentsSnapshot = await getDocs(studentsRef)

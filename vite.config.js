@@ -19,5 +19,6 @@ export default defineConfig({
     },
     optimizeDeps: {
         exclude: ['pdfjs-dist'],
+        include: ['firebase/app', 'firebase/auth', 'firebase/firestore'],
     },
 });

@@ -8,25 +8,23 @@ const firebaseConfig = {
   appId: import.meta.env.VITE_FIREBASE_APP_ID || '',
 }
 
+// Firebase 정적 import
+import { initializeApp, getApps } from 'firebase/app'
+import { getAuth, GoogleAuthProvider } from 'firebase/auth'
+
 // Firebase 초기화
 let app = null
 let auth = null
 let googleProvider = null
-let firebaseLoaded = false
+let firebaseInitialized = false
 
-// Firebase 동적 로드 및 초기화
-async function initFirebase() {
-  if (firebaseLoaded) {
+// Firebase 초기화 함수
+function initFirebase() {
+  if (firebaseInitialized && app) {
     return { app, auth, googleProvider }
   }
 
   try {
-    // Firebase 모듈 동적 import
-    const { initializeApp, getApps } = await import('firebase/app')
-    const { getAuth, GoogleAuthProvider } = await import('firebase/auth')
-
-    firebaseLoaded = true
-
     // Firebase가 이미 초기화되어 있는지 확인
     const existingApps = getApps()
 
@@ -35,6 +33,7 @@ async function initFirebase() {
       app = existingApps[0]
       auth = getAuth(app)
       googleProvider = new GoogleAuthProvider()
+      firebaseInitialized = true
     } else {
       // Firebase 설정값이 모두 있는지 확인
       const hasConfig = firebaseConfig.apiKey && 
@@ -47,20 +46,27 @@ async function initFirebase() {
           app = initializeApp(firebaseConfig)
           auth = getAuth(app)
           googleProvider = new GoogleAuthProvider()
+          firebaseInitialized = true
         } catch (error) {
           console.error('Firebase initialization error:', error)
           // 초기화 실패 시 null 유지
+          return { app: null, auth: null, googleProvider: null }
         }
       } else {
         console.warn('Firebase configuration is incomplete. Please check your .env file.')
+        console.warn('Missing config:', {
+          apiKey: !firebaseConfig.apiKey,
+          authDomain: !firebaseConfig.authDomain,
+          projectId: !firebaseConfig.projectId,
+          appId: !firebaseConfig.appId
+        })
+        return { app: null, auth: null, googleProvider: null }
       }
     }
 
     return { app, auth, googleProvider }
   } catch (error) {
-    console.error('Failed to load Firebase:', error)
-    console.error('Please run: npm install firebase')
-    firebaseLoaded = false
+    console.error('Failed to initialize Firebase:', error)
     return { app: null, auth: null, googleProvider: null }
   }
 }
