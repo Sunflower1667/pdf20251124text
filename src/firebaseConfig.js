@@ -8,6 +8,17 @@ const firebaseConfig = {
   appId: import.meta.env.VITE_FIREBASE_APP_ID || '',
 }
 
+// 디버깅: 환경 변수 로드 상태 확인 (개발 모드에서만)
+if (import.meta.env.DEV) {
+  console.log('=== Firebase 환경 변수 확인 ===')
+  console.log('VITE_FIREBASE_API_KEY:', firebaseConfig.apiKey ? '설정됨 (' + firebaseConfig.apiKey.substring(0, 10) + '...)' : '❌ 없음')
+  console.log('VITE_FIREBASE_AUTH_DOMAIN:', firebaseConfig.authDomain || '❌ 없음')
+  console.log('VITE_FIREBASE_PROJECT_ID:', firebaseConfig.projectId || '❌ 없음')
+  console.log('VITE_FIREBASE_STORAGE_BUCKET:', firebaseConfig.storageBucket || '❌ 없음')
+  console.log('VITE_FIREBASE_MESSAGING_SENDER_ID:', firebaseConfig.messagingSenderId || '❌ 없음')
+  console.log('VITE_FIREBASE_APP_ID:', firebaseConfig.appId || '❌ 없음')
+}
+
 // Firebase 정적 import
 import { initializeApp, getApps } from 'firebase/app'
 import { getAuth, GoogleAuthProvider } from 'firebase/auth'
@@ -64,20 +75,38 @@ function initFirebase() {
           return { app: null, auth: null, googleProvider: null, error: 'INIT_FAILED' }
         }
       } else {
-        console.warn('Firebase configuration is incomplete. Please check your .env file.')
-        console.warn('Missing config:', {
-          apiKey: !firebaseConfig.apiKey,
-          authDomain: !firebaseConfig.authDomain,
-          projectId: !firebaseConfig.projectId,
-          appId: !firebaseConfig.appId
+        const missingFields = []
+        if (!firebaseConfig.apiKey) missingFields.push('VITE_FIREBASE_API_KEY')
+        if (!firebaseConfig.authDomain) missingFields.push('VITE_FIREBASE_AUTH_DOMAIN')
+        if (!firebaseConfig.projectId) missingFields.push('VITE_FIREBASE_PROJECT_ID')
+        if (!firebaseConfig.appId) missingFields.push('VITE_FIREBASE_APP_ID')
+        
+        console.error('❌ Firebase configuration is incomplete!')
+        console.error('누락된 환경 변수:', missingFields.join(', '))
+        console.error('')
+        console.error('해결 방법:')
+        console.error('1. 로컬 개발: 프로젝트 루트에 .env 파일을 생성하고 다음 변수들을 설정하세요:')
+        console.error('   VITE_FIREBASE_API_KEY=your-api-key')
+        console.error('   VITE_FIREBASE_AUTH_DOMAIN=your-project.firebaseapp.com')
+        console.error('   VITE_FIREBASE_PROJECT_ID=your-project-id')
+        console.error('   VITE_FIREBASE_STORAGE_BUCKET=your-project.appspot.com')
+        console.error('   VITE_FIREBASE_MESSAGING_SENDER_ID=your-sender-id')
+        console.error('   VITE_FIREBASE_APP_ID=your-app-id')
+        console.error('')
+        console.error('2. Netlify 배포: Netlify 대시보드 → Site settings → Environment variables에서')
+        console.error('   위의 모든 VITE_FIREBASE_* 변수들을 설정하고 재배포하세요.')
+        console.error('')
+        console.error('현재 설정 상태:')
+        console.error({
+          apiKey: firebaseConfig.apiKey ? '✓ 설정됨' : '✗ 없음',
+          authDomain: firebaseConfig.authDomain ? '✓ 설정됨' : '✗ 없음',
+          projectId: firebaseConfig.projectId ? '✓ 설정됨' : '✗ 없음',
+          storageBucket: firebaseConfig.storageBucket ? '✓ 설정됨' : '✗ 없음',
+          messagingSenderId: firebaseConfig.messagingSenderId ? '✓ 설정됨' : '✗ 없음',
+          appId: firebaseConfig.appId ? '✓ 설정됨' : '✗ 없음'
         })
-        console.warn('Current config values (first 10 chars):', {
-          apiKey: firebaseConfig.apiKey ? firebaseConfig.apiKey.substring(0, 10) + '...' : 'empty',
-          authDomain: firebaseConfig.authDomain || 'empty',
-          projectId: firebaseConfig.projectId || 'empty',
-          appId: firebaseConfig.appId || 'empty'
-        })
-        return { app: null, auth: null, googleProvider: null, error: 'CONFIG_INCOMPLETE' }
+        
+        return { app: null, auth: null, googleProvider: null, error: 'CONFIG_INCOMPLETE', missingFields }
       }
     }
 
