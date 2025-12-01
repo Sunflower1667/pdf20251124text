@@ -1,22 +1,49 @@
 // Firebase 설정 - 환경변수에서 가져오기
-const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || '',
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || '',
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || '',
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || '',
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || '',
-  appId: import.meta.env.VITE_FIREBASE_APP_ID || '',
+// 주의: 모든 환경 변수는 VITE_ 접두사가 필요합니다!
+
+// 환경 변수 로드 확인
+const envVars = {
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID,
 }
 
-// 디버깅: 환경 변수 로드 상태 확인 (개발 모드에서만)
-if (import.meta.env.DEV) {
-  console.log('=== Firebase 환경 변수 확인 ===')
-  console.log('VITE_FIREBASE_API_KEY:', firebaseConfig.apiKey ? '설정됨 (' + firebaseConfig.apiKey.substring(0, 10) + '...)' : '❌ 없음')
-  console.log('VITE_FIREBASE_AUTH_DOMAIN:', firebaseConfig.authDomain || '❌ 없음')
-  console.log('VITE_FIREBASE_PROJECT_ID:', firebaseConfig.projectId || '❌ 없음')
-  console.log('VITE_FIREBASE_STORAGE_BUCKET:', firebaseConfig.storageBucket || '❌ 없음')
-  console.log('VITE_FIREBASE_MESSAGING_SENDER_ID:', firebaseConfig.messagingSenderId || '❌ 없음')
-  console.log('VITE_FIREBASE_APP_ID:', firebaseConfig.appId || '❌ 없음')
+// 디버깅: 모든 환경 변수 확인 (항상 표시)
+console.log('=== Firebase 환경 변수 로드 확인 ===')
+console.log('import.meta.env 모드:', import.meta.env.MODE)
+console.log('import.meta.env.DEV:', import.meta.env.DEV)
+console.log('import.meta.env.PROD:', import.meta.env.PROD)
+console.log('')
+console.log('환경 변수 상태:')
+const envKeyMap = {
+  apiKey: 'VITE_FIREBASE_API_KEY',
+  authDomain: 'VITE_FIREBASE_AUTH_DOMAIN',
+  projectId: 'VITE_FIREBASE_PROJECT_ID',
+  storageBucket: 'VITE_FIREBASE_STORAGE_BUCKET',
+  messagingSenderId: 'VITE_FIREBASE_MESSAGING_SENDER_ID',
+  appId: 'VITE_FIREBASE_APP_ID',
+}
+Object.keys(envVars).forEach(key => {
+  const value = envVars[key]
+  const envKey = envKeyMap[key]
+  if (key === 'apiKey' || key === 'messagingSenderId' || key === 'appId') {
+    console.log(`  ${envKey}:`, value ? `✓ 설정됨 (${value.substring(0, 10)}...)` : '❌ 없음')
+  } else {
+    console.log(`  ${envKey}:`, value || '❌ 없음')
+  }
+})
+console.log('')
+
+const firebaseConfig = {
+  apiKey: envVars.apiKey || '',
+  authDomain: envVars.authDomain || '',
+  projectId: envVars.projectId || '',
+  storageBucket: envVars.storageBucket || '',
+  messagingSenderId: envVars.messagingSenderId || '',
+  appId: envVars.appId || '',
 }
 
 // Firebase 정적 import
