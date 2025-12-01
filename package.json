@@ -1,0 +1,20 @@
+{
+  "name": "pdf20251124text",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "devDependencies": {
+    "vite": "^7.2.4"
+  },
+  "dependencies": {
+    "firebase": "^11.10.0",
+    "html2canvas": "^1.4.1",
+    "jspdf": "^3.0.4",
+    "pdfjs-dist": "^5.4.394"
+  }
+}
