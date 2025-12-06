@@ -1,7 +1,7 @@
 // 학생 활동 통합 관리 모듈
 import { jsPDF } from 'jspdf'
 import html2canvas from 'html2canvas'
-import { getRecentActivities, getStudentActivities } from './activityStorage.js'
+import { getRecentActivities, getStudentActivities, getRecentActivitiesByStudentId } from './activityStorage.js'
 
 /**
  * 3개 활동을 통합한 PDF 생성
@@ -484,6 +484,20 @@ export async function generateFinalPdf() {
     const month = String(now.getMonth() + 1).padStart(2, '0')
     const day = String(now.getDate()).padStart(2, '0')
     const fileName = `${year}-${month}-${day}_최종활동보고서.pdf`
+    
+    // PDF를 Blob으로 변환
+    const pdfBlob = doc.output('blob')
+    
+    // Firebase Storage에 저장
+    try {
+      const { saveFinalPdfToStorage } = await import('./activityStorage.js')
+      await saveFinalPdfToStorage(pdfBlob, fileName)
+    } catch (error) {
+      console.error('PDF 저장 오류:', error)
+      // 저장 실패해도 다운로드는 진행
+    }
+    
+    // 로컬 다운로드
     doc.save(fileName)
 
     // 임시 div 제거

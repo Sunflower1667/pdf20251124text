@@ -379,6 +379,7 @@ function renderStudentsList(students) {
       }
     })
   })
+
 }
 
 // 활동 기록 모달 표시
@@ -397,8 +398,11 @@ function showActivityModal(student) {
     return
   }
 
+  // 활동 필터링: 중복 제거 및 피드백 우선 표시
+  const filteredActivities = filterActivities(student.activities)
+
   // 활동 목록을 미리보기로 표시
-  modalBody.innerHTML = student.activities
+  modalBody.innerHTML = filteredActivities
     .map((activity, index) => {
       const date = activity.timestamp
         ? activity.timestamp.toDate().toLocaleString('ko-KR')
@@ -408,10 +412,10 @@ function showActivityModal(student) {
 
       return `
         <div class="activity-item" style="margin-bottom: 20px; padding: 20px; background: #ffffff; border-radius: 8px; border: 1px solid #e2e8f0;">
-          <div class="activity-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; padding: 10px; background: #2563eb; border-radius: 6px;">
+          <div class="activity-header" style="margin-bottom: 10px; padding: 10px; background: #2563eb; border-radius: 6px;">
             <span class="activity-type" style="font-weight: bold; font-size: 1.1rem; color: #ffffff;">${getActivityTypeLabel(activity.type)}</span>
-            <span class="activity-date" style="color: #ffffff; font-size: 0.9rem;">${date}</span>
           </div>
+          <div class="activity-date" style="color: #64748b; font-size: 0.9rem; margin-bottom: 15px; padding-left: 5px;">${date}</div>
           <div class="activity-preview" style="line-height: 1.8; margin-bottom: 15px;">
             ${preview}
           </div>
@@ -423,17 +427,66 @@ function showActivityModal(student) {
     })
     .join('')
 
-  // 상세 보기 버튼 이벤트 리스너
+  // 상세 보기 버튼 이벤트 리스너 (필터링된 활동 배열 사용)
   const viewDetailBtns = modalBody.querySelectorAll('.view-detail-btn')
   viewDetailBtns.forEach((btn) => {
     btn.addEventListener('click', (e) => {
       const index = parseInt(e.target.dataset.activityIndex)
-      const activity = student.activities[index]
+      const activity = filteredActivities[index]
       if (activity) {
         showActivityDetailModal(activity)
       }
     })
   })
+}
+
+// 활동 필터링: reflection만 피드백이 있는 것만 표시, 나머지는 모두 표시
+function filterActivities(activities) {
+  // reflection의 경우: 피드백이 있는 것만 표시 (중복 제거)
+  // 다른 타입은 모두 표시
+  
+  const reflectionMap = new Map() // reflection의 경우 같은 내용인지 확인하기 위한 맵
+  
+  const filtered = []
+  
+  // 먼저 reflection이 아닌 활동들은 모두 추가
+  activities.forEach(activity => {
+    if (activity.type !== 'reflection') {
+      filtered.push(activity)
+    }
+  })
+  
+  // reflection의 경우: 피드백이 있는 것만 추가 (같은 reflection 내용이면 피드백 있는 것만)
+  activities.forEach(activity => {
+    if (activity.type === 'reflection') {
+      const reflection = activity.data?.reflection || ''
+      const hasFeedback = !!activity.data?.feedback
+      
+      if (hasFeedback) {
+        // 피드백이 있는 경우: 기존에 같은 reflection이 있으면 교체, 없으면 추가
+        reflectionMap.set(reflection, activity)
+      } else {
+        // 피드백이 없는 경우: 같은 reflection이 이미 피드백 있는 것으로 추가되었으면 건너뛰기
+        if (!reflectionMap.has(reflection)) {
+          reflectionMap.set(reflection, activity)
+        }
+      }
+    }
+  })
+  
+  // reflection 맵의 값들을 추가
+  reflectionMap.forEach(activity => {
+    filtered.push(activity)
+  })
+  
+  // 최종적으로 타임스탬프로 정렬 (최신순)
+  filtered.sort((a, b) => {
+    const timeA = a.timestamp?.toDate?.() || new Date(0)
+    const timeB = b.timestamp?.toDate?.() || new Date(0)
+    return timeB - timeA
+  })
+  
+  return filtered
 }
 
 // 활동 타입 레이블
