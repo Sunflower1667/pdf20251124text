@@ -231,10 +231,52 @@ button:disabled {
   box-shadow: 0 4px 12px rgba(37, 99, 235, 0.15);
 }
 
+.idea-header {
+  margin-bottom: 16px;
+}
+
 .idea-card h3 {
-  margin: 0 0 12px;
+  margin: 0;
   font-size: 1.2rem;
   color: #0f172a;
+}
+
+.idea-prototype {
+  width: 100%;
+  margin: 16px 0;
+  padding: 16px;
+  background: #ffffff;
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 180px;
+  overflow: hidden;
+}
+
+.idea-prototype svg {
+  max-width: 100%;
+  max-height: 180px;
+  width: auto;
+  height: auto;
+}
+
+.idea-prototype-placeholder {
+  width: 100%;
+  margin: 16px 0;
+  padding: 16px;
+  background: #f8fafc;
+  border-radius: 12px;
+  border: 1px dashed #cbd5e1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 180px;
+}
+
+.idea-description {
+  margin: 16px 0;
 }
 
 .idea-card p {

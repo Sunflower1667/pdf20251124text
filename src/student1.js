@@ -24,15 +24,7 @@ app.innerHTML = `
         <input id="pdf-input" type="file" accept="application/pdf" />
         <span>PDF 파일 선택</span>
       </label>
-      <button id="extract-btn" type="button" disabled>텍스트 추출</button>
-    </section>
-
-    <section class="results">
-      <div class="status" id="status">PDF를 선택하면 텍스트를 추출할 수 있습니다.</div>
-      <textarea id="text-output" placeholder="추출된 텍스트가 여기에 표시됩니다." readonly></textarea>
-      <div class="actions">
-        <button id="save-btn" type="button" disabled>저장</button>
-      </div>
+      <div class="status" id="status">PDF 파일을 선택하면 자동으로 텍스트를 추출하고 분석할 수 있습니다.</div>
     </section>
 
     <section class="analysis-panel">
@@ -59,10 +51,7 @@ app.innerHTML = `
 `
 
 const pdfInput = document.querySelector('#pdf-input')
-const extractBtn = document.querySelector('#extract-btn')
-const saveBtn = document.querySelector('#save-btn')
 const statusEl = document.querySelector('#status')
-const outputEl = document.querySelector('#text-output')
 const analyzeBtn = document.querySelector('#analyze-btn')
 const analysisStatusEl = document.querySelector('#analysis-status')
 const analysisGrid = document.querySelector('#analysis-grid')
@@ -73,74 +62,49 @@ let lastExtractedText = ''
 let lastFileName = 'extracted-text'
 let lastAnalysisData = null
 
-pdfInput.addEventListener('change', () => {
+pdfInput.addEventListener('change', async () => {
   const file = pdfInput.files?.[0]
-  const available = Boolean(file)
+  
+  if (!file) {
+    setStatus('PDF를 다시 선택해 주세요.')
+    analyzeBtn.disabled = true
+    savePdfBtn.disabled = true
+    goToIdeaBtn.disabled = true
+    lastExtractedText = ''
+    lastAnalysisData = null
+    return
+  }
 
-  extractBtn.disabled = !available
-  saveBtn.disabled = true
+  lastFileName = file.name.replace(/\.pdf$/i, '') || 'pdf-text'
+  setStatus('텍스트를 추출하는 중입니다...', 'info')
   analyzeBtn.disabled = true
   savePdfBtn.disabled = true
   goToIdeaBtn.disabled = true
-  lastExtractedText = ''
   lastAnalysisData = null
-  outputEl.value = ''
-
-  if (file) {
-    lastFileName = file.name.replace(/\.pdf$/i, '') || 'pdf-text'
-    setStatus(`선택된 파일: ${file.name}`)
-  } else {
-    setStatus('PDF를 다시 선택해 주세요.')
-  }
-})
-
-extractBtn.addEventListener('click', async () => {
-  const file = pdfInput.files?.[0]
-  if (!file) return
-
-  toggleProcessing(true)
-  setStatus('텍스트를 추출하는 중입니다...')
 
   try {
+    // 자동으로 텍스트 추출
     lastExtractedText = await extractTextFromPdf(file)
 
     if (!lastExtractedText) {
       setStatus('텍스트를 찾지 못했습니다. 스캔된 PDF인지 확인해 주세요.', 'warn')
-      saveBtn.disabled = true
       analyzeBtn.disabled = true
-      outputEl.value = ''
+      setAnalysisStatus('PDF에서 텍스트를 추출할 수 없습니다.')
       return
     }
 
-    outputEl.value = lastExtractedText
-    saveBtn.disabled = false
+    // 추출 완료 후 분석 버튼 활성화
+    setStatus('텍스트 추출 완료! 명세서 분석을 진행할 수 있습니다.', 'success')
     analyzeBtn.disabled = false
-    setStatus('추출 완료! 명세서 분석도 진행할 수 있습니다.', 'success')
-    setAnalysisStatus('명세서 분석을 실행해 보세요.')
+    setAnalysisStatus('명세서 분석하기 버튼을 클릭하여 분석을 시작하세요.')
   } catch (error) {
     console.error(error)
     setStatus('추출 중 문제가 발생했습니다. 다른 PDF로 시도해 주세요.', 'error')
-    saveBtn.disabled = true
     analyzeBtn.disabled = true
-  } finally {
-    toggleProcessing(false)
+    setAnalysisStatus('PDF 텍스트 추출에 실패했습니다.')
   }
 })
 
-saveBtn.addEventListener('click', () => {
-  if (!lastExtractedText) return
-
-  const blob = new Blob([lastExtractedText], { type: 'text/plain;charset=utf-8' })
-  const url = window.URL.createObjectURL(blob)
-  const link = document.createElement('a')
-
-  link.href = url
-  link.download = `${lastFileName || 'pdf-text'}.txt`
-  link.click()
-
-  window.URL.revokeObjectURL(url)
-  setStatus('텍스트 파일이 저장되었습니다.', 'success')
-})
 
 analyzeBtn.addEventListener('click', async () => {
   if (!lastExtractedText.trim()) {
@@ -156,7 +120,27 @@ analyzeBtn.addEventListener('click', async () => {
   }
 
   toggleAnalysis(true)
-  setAnalysisStatus('명세서 요약봇이 명세서를 분석하는 중입니다...')
+  setAnalysisStatus('분석중 입니다.', 'info')
+  
+  // 로딩 애니메이션을 위한 스피너 표시
+  analysisStatusEl.innerHTML = `
+    <div style="display: flex; align-items: center; gap: 12px;">
+      <div class="spinner" style="width: 20px; height: 20px; border: 3px solid #e2e8f0; border-top-color: #2563eb; border-radius: 50%; animation: spin 1s linear infinite;"></div>
+      <span>분석중 입니다.</span>
+    </div>
+  `
+  
+  // CSS 애니메이션 추가
+  if (!document.querySelector('#spinner-style')) {
+    const style = document.createElement('style')
+    style.id = 'spinner-style'
+    style.textContent = `
+      @keyframes spin {
+        to { transform: rotate(360deg); }
+      }
+    `
+    document.head.appendChild(style)
+  }
 
   try {
     const analysis = await requestAnalysis(apiKey, lastExtractedText)
@@ -238,16 +222,17 @@ function setStatus(message, mode = 'info') {
 }
 
 function setAnalysisStatus(message, mode = 'info') {
-  analysisStatusEl.textContent = message
+  // HTML이 포함된 경우 innerHTML 사용, 그렇지 않으면 textContent 사용
+  if (message.includes('<div') || message.includes('<span')) {
+    analysisStatusEl.innerHTML = message
+  } else {
+    analysisStatusEl.textContent = message
+  }
   analysisStatusEl.dataset.mode = mode
 }
 
 function toggleProcessing(isProcessing) {
-  const hasFile = Boolean(pdfInput.files?.length)
-
-  extractBtn.disabled = isProcessing || !hasFile
   pdfInput.disabled = isProcessing
-  saveBtn.disabled = isProcessing || !lastExtractedText
   analyzeBtn.disabled = isProcessing || !lastExtractedText
   goToIdeaBtn.disabled = isProcessing || !lastAnalysisData
 }

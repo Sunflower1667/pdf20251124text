@@ -51,23 +51,8 @@ async function init() {
         if (isAdmin) {
           showMonitoringView(user)
         } else {
-          // 더 자세한 오류 메시지 표시
-          const errorDetails = []
-          if (!ADMIN_ID && !ADMIN_EMAIL) {
-            errorDetails.push('VITE_ADMIN_ID 또는 VITE_ADMIN_EMAIL이 .env 파일에 설정되지 않았습니다.')
-          } else {
-            if (ADMIN_ID) {
-              errorDetails.push(`설정된 ADMIN_ID: ${ADMIN_ID.substring(0, 10)}...`)
-              errorDetails.push(`현재 사용자 UID: ${user.uid}`)
-            }
-            if (ADMIN_EMAIL) {
-              errorDetails.push(`설정된 ADMIN_EMAIL: ${ADMIN_EMAIL}`)
-              errorDetails.push(`현재 사용자 Email: ${user.email}`)
-            }
-            errorDetails.push('UID 또는 이메일이 일치하지 않습니다.')
-          }
-          
-          showErrorWithDetails('관리자 권한이 없습니다.', errorDetails)
+          // 간단한 오류 메시지만 표시
+          showError('교사용 계정과 일치하지 않습니다.')
         }
       }
     })
@@ -478,12 +463,8 @@ function showError(message) {
     <div class="teacher-container">
       <div class="teacher-card">
         <div class="error-state">
-          <h2>오류</h2>
-          <p>${sanitize(message)}</p>
-          <div class="debug-info" style="margin-top: 20px; padding: 16px; background: #f8fafc; border-radius: 8px; font-size: 0.9rem; color: #64748b;">
-            <p><strong>디버깅 정보:</strong></p>
-            <p>브라우저 콘솔(F12)을 열어 자세한 로그를 확인하세요.</p>
-          </div>
+          <h2>접근 불가</h2>
+          <p style="font-size: 1.1rem; margin: 20px 0;">${sanitize(message)}</p>
           <a href="index.html" class="back-link" style="margin-top: 20px; display: inline-block;">← 메인으로 돌아가기</a>
         </div>
       </div>

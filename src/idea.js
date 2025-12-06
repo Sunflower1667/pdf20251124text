@@ -285,17 +285,42 @@ async function generateIdeas(apiKey, analysis, keywords) {
 학생이 입력한 키워드 3개:
 - ${keywordText}
 
-각 아이디어는 간단한 이름과 한 줄 설명만 제공해주세요.
+각 아이디어는 간단한 이름과 한 줄 설명, 그리고 프로토타입 스케치를 제공해주세요.
 학생이 입력한 키워드와 명세서의 특징/재료가 잘 섞이도록 아이디어를 만들어 주세요.
+
+프로토타입 스케치는 SVG 코드로 작성해주세요. 중학교 학생이 쉽게 이해할 수 있도록 매우 간단하고 명확하게 그려주세요.
+
+프로토타입 그림 요구사항:
+- 중학교 학생 수준으로 이해하기 쉽게
+- 복잡한 디테일 없이 핵심만 표현
+- 간단한 도형(직사각형, 원, 선)만 사용
+- 색상은 최소한으로 사용 (검은색 선과 1-2가지 색상만)
+- 발명품의 전체적인 모양과 주요 부분만 보여주기
+- 너무 세밀하거나 복잡한 그림은 피하기
+
 다음 JSON 형식으로 응답해주세요:
 
 {
   "ideas": [
-    {"name": "아이디어 이름", "description": "간단한 설명"},
-    {"name": "아이디어 이름", "description": "간단한 설명"},
-    {"name": "아이디어 이름", "description": "간단한 설명"}
+    {
+      "name": "아이디어 이름",
+      "description": "간단한 설명",
+      "prototype": "<svg width='200' height='150' viewBox='0 0 200 150' xmlns='http://www.w3.org/2000/svg'>...</svg>"
+    },
+    {
+      "name": "아이디어 이름",
+      "description": "간단한 설명",
+      "prototype": "<svg width='200' height='150' viewBox='0 0 200 150' xmlns='http://www.w3.org/2000/svg'>...</svg>"
+    },
+    {
+      "name": "아이디어 이름",
+      "description": "간단한 설명",
+      "prototype": "<svg width='200' height='150' viewBox='0 0 200 150' xmlns='http://www.w3.org/2000/svg'>...</svg>"
+    }
   ]
-}`
+}
+
+프로토타입 SVG는 200x150 크기로, 발명품의 핵심 구조나 외형을 매우 간단한 선과 기본 도형(직사각형, 원, 삼각형)으로만 표현해주세요. 마치 초등학생이나 중학생이 손으로 그린 것처럼 단순하고 이해하기 쉽게 그려주세요.`
 
   const response = await fetch(OPENAI_URL, {
     method: 'POST',
@@ -366,13 +391,41 @@ function displayIdeas(ideas) {
 
   ideasContainer.innerHTML = ideas
     .map(
-      (idea, index) => `
+      (idea, index) => {
+        // 프로토타입 SVG가 있으면 표시, 없으면 기본 플레이스홀더
+        let prototypeHtml = ''
+        if (idea.prototype && idea.prototype.trim()) {
+          // SVG 코드가 있으면 그대로 사용 (sanitize하지 않음 - SVG는 안전한 HTML)
+          const svgContent = idea.prototype.trim()
+          // SVG 태그가 포함되어 있는지 확인
+          if (svgContent.includes('<svg') || svgContent.includes('<SVG')) {
+            prototypeHtml = `<div class="idea-prototype">${svgContent}</div>`
+          } else {
+            // SVG 태그가 없으면 감싸기
+            prototypeHtml = `<div class="idea-prototype"><svg width="200" height="150" viewBox="0 0 200 150" xmlns="http://www.w3.org/2000/svg">${svgContent}</svg></div>`
+          }
+        } else {
+          prototypeHtml = `<div class="idea-prototype-placeholder">
+              <svg width="200" height="150" viewBox="0 0 200 150" xmlns="http://www.w3.org/2000/svg">
+                <rect x="20" y="20" width="160" height="110" fill="none" stroke="#e2e8f0" stroke-width="2" stroke-dasharray="5,5"/>
+                <text x="100" y="80" text-anchor="middle" fill="#94a3b8" font-size="14" font-family="Arial">프로토타입 이미지</text>
+              </svg>
+            </div>`
+        }
+        
+        return `
     <div class="idea-card" data-index="${index}">
-      <h3>${sanitize(idea.name)}</h3>
-      <p>${sanitize(idea.description)}</p>
+      <div class="idea-header">
+        <h3>${sanitize(idea.name)}</h3>
+      </div>
+      ${prototypeHtml}
+      <div class="idea-description">
+        <p>${sanitize(idea.description)}</p>
+      </div>
       <button class="select-idea-btn" data-index="${index}">이 아이디어 선택하기</button>
     </div>
   `
+      }
     )
     .join('')
 
