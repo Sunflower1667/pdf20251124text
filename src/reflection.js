@@ -24,16 +24,15 @@ app.innerHTML = `
       <textarea 
         id="reflection-text" 
         placeholder="오늘 활동에 대한 소감을 작성해주세요...&#10;&#10;예: 오늘은 명세서를 분석하고 새로운 발명 아이디어를 생각해보는 시간이었습니다. 처음에는 어려웠지만, AI 도우미의 도움으로 아이디어를 구체화할 수 있어서 좋았습니다..."
-        rows="12"
+        rows="6"
       ></textarea>
     </section>
 
     <section class="actions-section">
       <div class="action-buttons">
-        <button id="save-reflection-btn" type="button" disabled>소감 저장하기</button>
-        <button id="get-feedback-btn" type="button" disabled>피드백 받기</button>
+        <button id="get-feedback-btn" type="button" disabled>소감 제출 및 피드백 받기</button>
       </div>
-      <p id="status-message" class="status-message">소감을 작성하면 저장 및 피드백을 받을 수 있습니다.</p>
+      <p id="status-message" class="status-message">소감을 작성하면 제출 및 피드백을 받을 수 있습니다.</p>
     </section>
 
     <section class="feedback-section" id="feedback-section" style="display: none;">
@@ -48,7 +47,6 @@ app.innerHTML = `
 
 const reflectionText = document.querySelector('#reflection-text')
 const charCount = document.querySelector('#char-count')
-const saveReflectionBtn = document.querySelector('#save-reflection-btn')
 const getFeedbackBtn = document.querySelector('#get-feedback-btn')
 const statusMessage = document.querySelector('#status-message')
 const feedbackSection = document.querySelector('#feedback-section')
@@ -65,51 +63,19 @@ reflectionText.addEventListener('input', () => {
 
   // 버튼 활성화/비활성화
   const hasContent = length > 0
-  saveReflectionBtn.disabled = !hasContent
   getFeedbackBtn.disabled = !hasContent
 
   // 상태 메시지 업데이트
   if (length === 0) {
-    statusMessage.textContent = '소감을 작성하면 저장 및 피드백을 받을 수 있습니다.'
+    statusMessage.textContent = '소감을 작성하면 제출 및 피드백을 받을 수 있습니다.'
     statusMessage.dataset.mode = 'info'
   } else {
-    statusMessage.textContent = '소감이 작성되었습니다. 저장하거나 피드백을 받을 수 있습니다.'
+    statusMessage.textContent = '소감이 작성되었습니다. 제출 및 피드백을 받을 수 있습니다.'
     statusMessage.dataset.mode = 'success'
   }
 })
 
-// 소감 저장하기
-saveReflectionBtn.addEventListener('click', async () => {
-  const text = reflectionText.value.trim()
-  if (!text) {
-    alert('저장할 소감 내용이 없습니다.')
-    return
-  }
-
-  saveReflectionBtn.disabled = true
-  saveReflectionBtn.textContent = 'PDF 생성 중...'
-
-  try {
-    await generateReflectionPdf(text, null)
-    
-    // Firebase에 활동 저장
-    const { saveStudentActivity } = await import('./activityStorage.js')
-    await saveStudentActivity('reflection', { reflection: text })
-    
-    statusMessage.textContent = '소감이 저장되었습니다.'
-    statusMessage.dataset.mode = 'success'
-  } catch (error) {
-    console.error('PDF 저장 오류:', error)
-    alert('PDF 저장 중 오류가 발생했습니다.')
-    statusMessage.textContent = '저장 중 오류가 발생했습니다.'
-    statusMessage.dataset.mode = 'error'
-  } finally {
-    saveReflectionBtn.disabled = false
-    saveReflectionBtn.textContent = '소감 저장하기'
-  }
-})
-
-// 피드백 받기
+// 소감 제출 및 피드백 받기
 getFeedbackBtn.addEventListener('click', async () => {
   const text = reflectionText.value.trim()
   if (!text) {
@@ -124,25 +90,29 @@ getFeedbackBtn.addEventListener('click', async () => {
   }
 
   getFeedbackBtn.disabled = true
-  getFeedbackBtn.textContent = '피드백 생성 중...'
-  statusMessage.textContent = 'AI가 소감을 분석하고 피드백을 작성하고 있습니다...'
+  getFeedbackBtn.textContent = '제출 및 피드백 생성 중...'
+  statusMessage.textContent = '소감을 제출하고 AI가 피드백을 작성하고 있습니다...'
   statusMessage.dataset.mode = 'info'
 
   try {
+    // Firebase에 활동 저장 (소감 제출)
+    const { saveStudentActivity } = await import('./activityStorage.js')
+    await saveStudentActivity('reflection', { reflection: text })
+    
     feedbackText = await generateFeedback(apiKey, text)
     feedbackContent.innerHTML = `
       <div class="feedback-text">${sanitize(feedbackText).replace(/\n/g, '<br>')}</div>
     `
     feedbackSection.style.display = 'block'
-    statusMessage.textContent = '피드백이 생성되었습니다.'
+    statusMessage.textContent = '소감이 제출되었고 피드백이 생성되었습니다.'
     statusMessage.dataset.mode = 'success'
   } catch (error) {
     console.error('피드백 생성 오류:', error)
-    statusMessage.textContent = error.message || '피드백 생성 중 오류가 발생했습니다.'
+    statusMessage.textContent = error.message || '제출 및 피드백 생성 중 오류가 발생했습니다.'
     statusMessage.dataset.mode = 'error'
   } finally {
     getFeedbackBtn.disabled = false
-    getFeedbackBtn.textContent = '피드백 받기'
+    getFeedbackBtn.textContent = '소감 제출 및 피드백 받기'
   }
 })
 

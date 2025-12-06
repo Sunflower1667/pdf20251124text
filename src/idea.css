@@ -47,6 +47,15 @@ h1 {
   margin: 0;
   font-size: clamp(1.6rem, 5vw, 2.6rem);
   color: #0f172a;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+}
+
+h1::before {
+  content: '💡';
+  font-size: 2.2rem;
 }
 
 .subtitle {

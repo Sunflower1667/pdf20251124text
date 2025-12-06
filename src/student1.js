@@ -15,7 +15,7 @@ app.innerHTML = `
     <header>
       <h1>명세서 쉽게 이해하기</h1>
       <p class="subtitle">
-        PDF로 저장된 명세서에서 텍스트를 추출한 뒤, 명세서 요약봇을 통해 핵심 내용을 요약하세요.
+       명세서 파일을 받아 업로드 해주세요!
       </p>
     </header>
 
@@ -24,18 +24,18 @@ app.innerHTML = `
         <input id="pdf-input" type="file" accept="application/pdf" />
         <span>PDF 파일 선택</span>
       </label>
-      <div class="status" id="status">PDF 파일을 선택하면 자동으로 텍스트를 추출하고 분석할 수 있습니다.</div>
+     
     </section>
 
     <section class="analysis-panel">
       <div class="analysis-header">
   <div>
           <h2>명세서 분석</h2>
-          <p>추출된 텍스트를 바탕으로 명세서 요약봇이 아래 항목을 정리합니다.</p>
+          <p>명세서 요약봇이 아래 항목을 정리합니다.</p>
         </div>
         <button id="analyze-btn" type="button" disabled>명세서 분석하기</button>
       </div>
-      <p id="analysis-status" class="analysis-status">추출된 텍스트가 준비되면 분석 버튼이 활성화됩니다.</p>
+      <p id="analysis-status" class="analysis-status">pdf가 업로드 완료되면 분석을 할 수 있어요</p>
       <div id="analysis-grid" class="analysis-grid">
         ${createAnalysisCard('특허 이름')}
         ${createAnalysisCard('출원 번호')}
@@ -62,7 +62,12 @@ let lastExtractedText = ''
 let lastFileName = 'extracted-text'
 let lastAnalysisData = null
 
-pdfInput.addEventListener('change', async () => {
+if (!pdfInput) {
+  console.error('PDF input element not found!')
+}
+
+if (pdfInput) {
+  pdfInput.addEventListener('change', async () => {
   const file = pdfInput.files?.[0]
   
   if (!file) {
@@ -103,7 +108,8 @@ pdfInput.addEventListener('change', async () => {
     analyzeBtn.disabled = true
     setAnalysisStatus('PDF 텍스트 추출에 실패했습니다.')
   }
-})
+  })
+}
 
 
 analyzeBtn.addEventListener('click', async () => {
@@ -217,11 +223,19 @@ goToIdeaBtn.addEventListener('click', () => {
 })
 
 function setStatus(message, mode = 'info') {
+  if (!statusEl) {
+    console.error('Status element not found!')
+    return
+  }
   statusEl.textContent = message
   statusEl.dataset.mode = mode
 }
 
 function setAnalysisStatus(message, mode = 'info') {
+  if (!analysisStatusEl) {
+    console.error('Analysis status element not found!')
+    return
+  }
   // HTML이 포함된 경우 innerHTML 사용, 그렇지 않으면 textContent 사용
   if (message.includes('<div') || message.includes('<span')) {
     analysisStatusEl.innerHTML = message
@@ -347,7 +361,15 @@ async function requestAnalysis(apiKey, text) {
             {
               type: 'input_text',
               text: [
-                '너는 특허 명세서를 네 가지 항목으로 요약하는 전문가야.',
+                '너는 특허 명세서를 중학생이 이해하기 쉽게 네 가지 항목으로 요약하는 전문가야.',
+                '',
+                '중요한 요구사항:',
+                '1. 어려운 전문 용어나 기술 용어가 나오면 괄호 안에 쉬운 설명을 달아줘.',
+                '   예: "폴리머(플라스틱 같은 재료)" 또는 "전도성(전기가 잘 통하는 성질)"',
+                '2. 복잡한 설명은 중학생이 이해할 수 있는 쉬운 말로 바꿔서 설명해줘.',
+                '3. 너무 긴 문장은 짧게 나눠서 설명해줘.',
+                '4. 각 항목의 내용을 명확하고 간단하게 정리해줘.',
+                '',
                 '반드시 다음 JSON 구조를 지켜:',
                 JSON.stringify(
                   {

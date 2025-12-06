@@ -16,7 +16,6 @@ if (!analysisData || Object.keys(analysisData).length === 0) {
     <div class="shell">
       <h1>명세서 분석 데이터가 없습니다.</h1>
       <p>먼저 메인 페이지에서 명세서를 분석해 주세요.</p>
-      <a href="index.html" class="back-btn">메인 페이지로 돌아가기</a>
     </div>
   `
 } else {
