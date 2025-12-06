@@ -21,6 +21,7 @@ export default defineConfig({
                 idea: resolve(__dirname, 'idea.html'),
                 reflection: resolve(__dirname, 'reflection.html'),
                 teacher: resolve(__dirname, 'teacher.html'),
+                drawing: resolve(__dirname, 'drawing.html'),
             },
             output: {
                 // 청크 파일명 형식

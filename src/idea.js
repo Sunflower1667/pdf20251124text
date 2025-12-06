@@ -63,10 +63,10 @@ if (!analysisData || Object.keys(analysisData).length === 0) {
         <div id="chat-messages" class="chat-messages"></div>
         <div class="chat-input-container">
           <textarea id="chat-input" placeholder="아이디어에 대해 질문하거나 설명을 요청하세요..." rows="3"></textarea>
-          <button id="send-btn" type="button">전송</button>
-        </div>
-        <div class="chat-actions">
-          <button id="save-chat-btn" type="button" disabled>대화 내용 저장하기</button>
+          <div class="chat-buttons">
+            <button id="send-btn" type="button">전송</button>
+            <button id="save-chat-btn" type="button" disabled>대화 내용 저장하기</button>
+          </div>
         </div>
       </section>
 
@@ -292,7 +292,7 @@ async function generateIdeas(apiKey, analysis, keywords) {
 프로토타입 그림 요구사항:
 - 중학교 학생 수준으로 이해하기 쉽게
 - 복잡한 디테일 없이 핵심만 표현
-- 간단한 도형(직사각형, 원, 선)만 사용
+- 간단한 도형(직사각형, 원, 선, 삼각형, 별, 하트, 타원, 육각형, 원기둥)만 사용
 - 색상은 최소한으로 사용 (검은색 선과 1-2가지 색상만)
 - 발명품의 전체적인 모양과 주요 부분만 보여주기
 - 너무 세밀하거나 복잡한 그림은 피하기
@@ -319,7 +319,7 @@ async function generateIdeas(apiKey, analysis, keywords) {
   ]
 }
 
-프로토타입 SVG는 200x150 크기로, 발명품의 핵심 구조나 외형을 매우 간단한 선과 기본 도형(직사각형, 원, 삼각형)으로만 표현해주세요. 마치 초등학생이나 중학생이 손으로 그린 것처럼 단순하고 이해하기 쉽게 그려주세요.`
+프로토타입 SVG는 200x150 크기로, 발명품의 핵심 구조나 외형을 매우 간단한 선과 기본 도형(직사각형, 원, 삼각형, 별, 하트, 타원, 육각형, 원기둥)으로만 표현해주세요. 마치 초등학생이나 중학생이 손으로 그린 것처럼 단순하고 이해하기 쉽게 그려주세요.`
 
   const response = await fetch(OPENAI_URL, {
     method: 'POST',
@@ -448,7 +448,7 @@ function selectIdea(index, idea) {
   chatHistory = [
     {
       role: 'assistant',
-      content: `안녕하세요! "${idea.name}" 아이디어를 구체화하는 것을 도와드리겠습니다. 어떤 부분을 더 자세히 알고 싶으신가요?`,
+      content: `안녕하세요! "${idea.name}" 아이디어를 구체화하는 것을 도와줄께요! 질문해주세요!`,
     },
   ]
   renderChatMessages()
@@ -534,15 +534,11 @@ async function chatWithAI(apiKey, idea, message, history, currentTurn) {
   let systemPrompt = `당신은 발명 도우미 역할을 하는 교사입니다. 
 학생이 선택한 아이디어 "${idea.name}" (${idea.description})를 이해하고 발전시키도록 도와주세요.
 
-항상 교사가 학생에게 설명하듯이, 존댓말로 친절하고 차분하게 말해 주세요.
+항상 교사가 학생에게 설명하듯이, 존댓말로 친절하고 차분하게 말해 주세요. 무엇보다 학생이 중학생이기에 쉬운 용어를 사용해야해요.
 학생이 방금 한 질문에 대해 먼저 직접적인 답을 해 주고,
 필요한 경우에만 짧게 예시나 추가 설명을 덧붙여 주세요.
 
-특히 다음 내용을 중심으로 설명해 주세요.
-1) 발명품을 어떻게 만들면 좋은지 (제작 단계, 공정)
-2) 필요한 재료와 도구
-3) 발명품의 핵심 특징과 장점
-4) 사용 시 주의할 점이나 유의사항`
+`
 
   // 마지막 턴(10번째 질문)에서는 전체 내용을 정리하는 답변을 생성
   if (currentTurn >= MAX_CHAT_TURNS) {

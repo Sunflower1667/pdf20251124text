@@ -11,7 +11,7 @@ export async function generateCombinedPdf() {
     // 최근 활동 가져오기
     const activities = await getRecentActivities()
     
-    if (!activities.analysis && !activities.idea && !activities.reflection) {
+    if (!activities.analysis && !activities.idea && !activities.drawing) {
       alert('저장된 활동이 없습니다. 먼저 활동을 완료해주세요.')
       return
     }
@@ -28,7 +28,7 @@ export async function generateCombinedPdf() {
 
         ${activities.analysis ? generateAnalysisSection(activities.analysis.data) : ''}
         ${activities.idea ? generateIdeaSection(activities.idea.data) : ''}
-        ${activities.reflection ? generateReflectionSection(activities.reflection.data) : ''}
+        ${activities.drawing ? generateDrawingSection(activities.drawing.data) : ''}
       </div>
     `
 
@@ -178,31 +178,24 @@ function generateIdeaSection(ideaData) {
   `
 }
 
-// 성찰 섹션 HTML 생성
-function generateReflectionSection(reflectionData) {
-  if (!reflectionData) return ''
+// 그림 그리기 섹션 HTML 생성
+function generateDrawingSection(drawingData) {
+  if (!drawingData) return ''
 
-  const { reflection, feedback } = reflectionData
+  const { image } = drawingData
 
   return `
-    <div style="margin-bottom: 30px; padding: 30px; background: #fefce8; border-radius: 12px; border-left: 4px solid #eab308;">
-      <h2 style="font-size: 22px; font-weight: bold; margin-bottom: 25px; color: #eab308;">
-        3. 오늘 활동 소감
+    <div style="margin-bottom: 30px; padding: 30px; background: #fef3c7; border-radius: 12px; border-left: 4px solid #f59e0b;">
+      <h2 style="font-size: 22px; font-weight: bold; margin-bottom: 25px; color: #f59e0b;">
+        3. 발명품 그림 그리기
       </h2>
       
-      ${reflection ? `
-      <div style="margin-bottom: ${feedback ? '25px' : '0'};">
-        <h3 style="font-size: 16px; font-weight: bold; margin-bottom: 8px; color: #475569;">학생 소감</h3>
-        <div style="font-size: 14px; line-height: 1.8; margin-left: 10px; padding: 15px; background: white; border-radius: 8px; white-space: pre-wrap;">${sanitize(reflection)}</div>
+      ${image ? `
+      <div style="text-align: center;">
+        <h3 style="font-size: 16px; font-weight: bold; margin-bottom: 15px; color: #475569;">그린 그림</h3>
+        <img src="${image}" alt="발명품 그림" style="max-width: 100%; height: auto; border-radius: 8px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);" />
       </div>
-      ` : ''}
-
-      ${feedback ? `
-      <div>
-        <h3 style="font-size: 16px; font-weight: bold; margin-bottom: 8px; color: #475569;">교사 피드백</h3>
-        <div style="font-size: 14px; line-height: 1.8; margin-left: 10px; padding: 15px; background: #ecfdf5; border-radius: 8px; white-space: pre-wrap;">${sanitize(feedback)}</div>
-      </div>
-      ` : ''}
+      ` : '<p style="text-align: center; color: #64748b;">저장된 그림이 없습니다.</p>'}
     </div>
   `
 }

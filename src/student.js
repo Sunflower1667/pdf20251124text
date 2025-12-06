@@ -55,16 +55,16 @@ app.innerHTML = `
 
       <div class="page-section">
         <div class="page-header">
-          <h2>✍️ 3. 오늘 활동 소감</h2>
-          <button class="fullscreen-btn" data-page="reflection" title="전체 화면">
+          <h2>🎨 3. 발명품 그림 그리기</h2>
+          <button class="fullscreen-btn" data-page="drawing" title="전체 화면">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/>
             </svg>
           </button>
         </div>
         <iframe 
-          id="reflection-frame"
-          src="reflection.html" 
+          id="drawing-frame"
+          src="drawing.html" 
           class="page-frame"
           frameborder="0"
           loading="lazy"
@@ -141,7 +141,7 @@ function showPastActivitiesModal(activities) {
                 const typeLabels = {
                   analysis: '명세서 분석',
                   idea: '아이디어 창출',
-                  reflection: '활동 소감'
+                  drawing: '발명품 그림 그리기'
                 }
                 const typeLabel = typeLabels[activity.type] || activity.type
                 
@@ -211,9 +211,9 @@ function getActivityPreview(activity) {
   } else if (type === 'idea') {
     const { name, description } = data || {}
     return `<p><strong>${sanitize(name || '아이디어')}</strong><br>${sanitize((description || '').substring(0, 100))}${(description || '').length > 100 ? '...' : ''}</p>`
-  } else if (type === 'reflection') {
-    const { reflection } = data || {}
-    return `<p>${sanitize((reflection || '').substring(0, 100))}${(reflection || '').length > 100 ? '...' : ''}</p>`
+  } else if (type === 'drawing') {
+    const { image } = data || {}
+    return image ? '<p>발명품 그림이 저장되어 있습니다.</p>' : '<p>저장된 그림이 없습니다.</p>'
   }
   
   return '<p>활동 내용</p>'
@@ -257,14 +257,17 @@ function showActivityDetail(activity) {
         </div>
       ` : ''}
     `
-  } else if (type === 'reflection') {
-    const { reflection, feedback } = data || {}
+  } else if (type === 'drawing') {
+    const { image } = data || {}
     detailHtml = `
-      <h3>활동 소감</h3>
+      <h3>발명품 그림 그리기</h3>
       <p><strong>작성일:</strong> ${date}</p>
-      <p><strong>학생 소감:</strong></p>
-      <p style="white-space: pre-wrap;">${sanitize(reflection || '정보 없음')}</p>
-      ${feedback ? `<p><strong>교사 피드백:</strong></p><p style="white-space: pre-wrap;">${sanitize(feedback)}</p>` : ''}
+      ${image ? `
+        <p><strong>그린 그림:</strong></p>
+        <div style="text-align: center; margin-top: 20px;">
+          <img src="${image}" alt="발명품 그림" style="max-width: 100%; height: auto; border-radius: 8px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);" />
+        </div>
+      ` : '<p>저장된 그림이 없습니다.</p>'}
     `
   }
   
@@ -327,8 +330,8 @@ fullscreenBtns.forEach(btn => {
       case 'idea':
         url = 'idea.html'
         break
-      case 'reflection':
-        url = 'reflection.html'
+      case 'drawing':
+        url = 'drawing.html'
         break
     }
     

@@ -41,6 +41,7 @@ body {
 
 header {
   text-align: center;
+  margin-bottom: 0;
 }
 
 .eyebrow {
@@ -78,7 +79,7 @@ h1::before {
   gap: 16px;
   align-items: center;
   justify-content: center;
-  margin-top: 16px;
+  margin-top: 5px;
 }
 
 .file-picker {
@@ -187,20 +188,26 @@ textarea {
 
 .analysis-header {
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
   gap: 12px;
+}
+
+.analysis-title-section {
+  display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 16px;
 }
 
 .analysis-header h2 {
   margin: 0;
   font-size: 1.4rem;
   color: #0f172a;
+  flex: 1;
 }
 
 .analysis-header p {
-  margin: 4px 0 0;
+  margin: 0;
   color: #475569;
 }
 

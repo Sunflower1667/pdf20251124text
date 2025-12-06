@@ -110,8 +110,8 @@ export async function getStudentActivities(maxResults = 50) {
 }
 
 /**
- * 최근 3개 활동(analysis, idea, reflection)을 가져오기
- * @returns {Promise<Object>} { analysis, idea, reflection }
+ * 최근 3개 활동(analysis, idea, drawing)을 가져오기
+ * @returns {Promise<Object>} { analysis, idea, drawing }
  */
 export async function getRecentActivities() {
   try {
@@ -120,7 +120,7 @@ export async function getRecentActivities() {
     const result = {
       analysis: null,
       idea: null,
-      reflection: null,
+      drawing: null,
     }
 
     // 각 타입별로 가장 최근 활동 찾기
@@ -129,12 +129,12 @@ export async function getRecentActivities() {
         result.analysis = activity
       } else if (activity.type === 'idea' && !result.idea) {
         result.idea = activity
-      } else if (activity.type === 'reflection' && !result.reflection) {
-        result.reflection = activity
+      } else if (activity.type === 'drawing' && !result.drawing) {
+        result.drawing = activity
       }
 
       // 모두 찾았으면 종료
-      if (result.analysis && result.idea && result.reflection) {
+      if (result.analysis && result.idea && result.drawing) {
         break
       }
     }
@@ -142,7 +142,7 @@ export async function getRecentActivities() {
     return result
   } catch (error) {
     console.error('최근 활동 조회 오류:', error)
-    return { analysis: null, idea: null, reflection: null }
+    return { analysis: null, idea: null, drawing: null }
   }
 }
 

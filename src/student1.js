@@ -29,13 +29,12 @@ app.innerHTML = `
 
     <section class="analysis-panel">
       <div class="analysis-header">
-  <div>
+        <div class="analysis-title-section">
           <h2>명세서 분석</h2>
-          <p>명세서 요약봇이 아래 항목을 정리합니다.</p>
+          <button id="analyze-btn" type="button" disabled>명세서 분석하기</button>
         </div>
-        <button id="analyze-btn" type="button" disabled>명세서 분석하기</button>
       </div>
-      <p id="analysis-status" class="analysis-status">pdf가 업로드 완료되면 분석을 할 수 있어요</p>
+      <p id="analysis-status" class="analysis-status">pdf가 업로드 완료되면 분석을 할 수 있어요!</p>
       <div id="analysis-grid" class="analysis-grid">
         ${createAnalysisCard('특허 이름')}
         ${createAnalysisCard('출원 번호')}
@@ -43,7 +42,6 @@ app.innerHTML = `
         ${createAnalysisCard('발명품의 재료', true)}
       </div>
       <div class="analysis-actions">
-        <button id="save-pdf-btn" type="button" disabled>파일로 저장하기</button>
         <button id="go-to-idea-btn" type="button" disabled>아이디어 창출하기</button>
       </div>
     </section>
@@ -55,7 +53,6 @@ const statusEl = document.querySelector('#status')
 const analyzeBtn = document.querySelector('#analyze-btn')
 const analysisStatusEl = document.querySelector('#analysis-status')
 const analysisGrid = document.querySelector('#analysis-grid')
-const savePdfBtn = document.querySelector('#save-pdf-btn')
 const goToIdeaBtn = document.querySelector('#go-to-idea-btn')
 
 let lastExtractedText = ''
@@ -73,7 +70,6 @@ if (pdfInput) {
   if (!file) {
     setStatus('PDF를 다시 선택해 주세요.')
     analyzeBtn.disabled = true
-    savePdfBtn.disabled = true
     goToIdeaBtn.disabled = true
     lastExtractedText = ''
     lastAnalysisData = null
@@ -83,7 +79,6 @@ if (pdfInput) {
   lastFileName = file.name.replace(/\.pdf$/i, '') || 'pdf-text'
   setStatus('텍스트를 추출하는 중입니다...', 'info')
   analyzeBtn.disabled = true
-  savePdfBtn.disabled = true
   goToIdeaBtn.disabled = true
   lastAnalysisData = null
 
@@ -99,9 +94,9 @@ if (pdfInput) {
     }
 
     // 추출 완료 후 분석 버튼 활성화
-    setStatus('텍스트 추출 완료! 명세서 분석을 진행할 수 있습니다.', 'success')
+    setStatus('텍스트 추출 완료! 명세서를 분석할 수 있어요!', 'success')
     analyzeBtn.disabled = false
-    setAnalysisStatus('명세서 분석하기 버튼을 클릭하여 분석을 시작하세요.')
+    setAnalysisStatus('[명세서 분석하기]를 클릭하여 분석을 시작하세요.')
   } catch (error) {
     console.error(error)
     setStatus('추출 중 문제가 발생했습니다. 다른 PDF로 시도해 주세요.', 'error')
@@ -152,7 +147,6 @@ analyzeBtn.addEventListener('click', async () => {
     const analysis = await requestAnalysis(apiKey, lastExtractedText)
     lastAnalysisData = analysis
     renderAnalysis(analysis)
-    savePdfBtn.disabled = false
     
     // localStorage에 분석 데이터 저장
     localStorage.setItem('analysisData', JSON.stringify(analysis))
@@ -164,29 +158,13 @@ analyzeBtn.addEventListener('click', async () => {
     
     // 아이디어 창출 버튼 활성화
     goToIdeaBtn.disabled = false
-    setAnalysisStatus('분석 완료! 아이디어 창출 페이지로 이동할 수 있습니다.', 'success')
+    setAnalysisStatus('분석 완료! 아이디어 창출 페이지로 이동하세요!', 'success')
   } catch (error) {
     console.error(error)
     setAnalysisStatus(error.message || '분석 중 오류가 발생했습니다.', 'error')
-    savePdfBtn.disabled = true
     goToIdeaBtn.disabled = true
   } finally {
     toggleAnalysis(false)
-  }
-})
-
-savePdfBtn.addEventListener('click', () => {
-  if (!lastAnalysisData) {
-    setAnalysisStatus('저장할 분석 결과가 없습니다.', 'warn')
-    return
-  }
-
-  try {
-    generateAnalysisPdf(lastAnalysisData)
-    setAnalysisStatus('PDF 파일이 저장되었습니다.', 'success')
-  } catch (error) {
-    console.error(error)
-    setAnalysisStatus('PDF 저장 중 오류가 발생했습니다.', 'error')
   }
 })
 
@@ -254,7 +232,6 @@ function toggleProcessing(isProcessing) {
 function toggleAnalysis(isBusy) {
   analyzeBtn.disabled = isBusy || !lastExtractedText
   if (isBusy) {
-    savePdfBtn.disabled = true
     goToIdeaBtn.disabled = true
   }
 }
