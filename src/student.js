@@ -1,4 +1,6 @@
 import './student.css'
+import { initFirebase } from './firebaseConfig.js'
+import { onAuthStateChanged, signOut } from 'firebase/auth'
 
 const app = document.querySelector('#app')
 
@@ -13,7 +15,16 @@ app.innerHTML = `
       <div class="header-actions">
         <button id="finish-activity-btn" class="action-btn-primary">활동 종료하기</button>
         <button id="save-all-btn" class="action-btn-primary">전체 활동 PDF 저장</button>
-        <button id="view-past-btn" class="action-btn-secondary">과거 활동 보기</button>
+        <div style="display: flex; align-items: center; gap: 12px;">
+          <button id="view-past-btn" class="action-btn-secondary">과거 활동 보기</button>
+          <div class="user-info" id="user-info" style="display: none;">
+            <div class="user-profile">
+              <img id="user-photo" src="" alt="프로필" class="user-avatar" onerror="this.style.display='none'">
+              <span id="user-name" class="user-name"></span>
+            </div>
+            <button id="logout-btn" class="logout-btn">로그아웃</button>
+          </div>
+        </div>
       </div>
     </header>
 
@@ -80,6 +91,71 @@ const finishActivityBtn = document.querySelector('#finish-activity-btn')
 const saveAllBtn = document.querySelector('#save-all-btn')
 const viewPastBtn = document.querySelector('#view-past-btn')
 const fullscreenBtns = document.querySelectorAll('.fullscreen-btn')
+const userInfo = document.querySelector('#user-info')
+const userName = document.querySelector('#user-name')
+const userPhoto = document.querySelector('#user-photo')
+const logoutBtn = document.querySelector('#logout-btn')
+
+// Firebase 초기화 및 로그인 상태 확인
+const firebaseResult = initFirebase()
+if (firebaseResult.auth) {
+  onAuthStateChanged(firebaseResult.auth, (user) => {
+    if (user) {
+      // 로그인 상태: 사용자 정보 표시
+      const displayName = localStorage.getItem('userName') || user.displayName || user.email
+      const photoURL = localStorage.getItem('userPhoto') || user.photoURL || ''
+      
+      if (userName) userName.textContent = displayName
+      if (userPhoto) {
+        userPhoto.src = photoURL
+        userPhoto.style.display = photoURL ? 'block' : 'none'
+      }
+      if (userInfo) userInfo.style.display = 'flex'
+    } else {
+      // 로그아웃 상태: 사용자 정보 숨김
+      if (userInfo) userInfo.style.display = 'none'
+      // 로그인 페이지로 리다이렉트
+      window.location.href = 'login.html?role=student'
+    }
+  })
+} else {
+  // Firebase 초기화 실패 시 localStorage 정보 사용
+  const storedName = localStorage.getItem('userName')
+  const storedPhoto = localStorage.getItem('userPhoto')
+  
+  if (storedName) {
+    if (userName) userName.textContent = storedName
+    if (userPhoto && storedPhoto) {
+      userPhoto.src = storedPhoto
+      userPhoto.style.display = 'block'
+    }
+    if (userInfo) userInfo.style.display = 'flex'
+  }
+}
+
+// 로그아웃 버튼
+if (logoutBtn) {
+  logoutBtn.addEventListener('click', async () => {
+    if (confirm('로그아웃 하시겠습니까?')) {
+      try {
+        if (firebaseResult.auth) {
+          await signOut(firebaseResult.auth)
+        }
+        // localStorage 정리
+        localStorage.removeItem('userId')
+        localStorage.removeItem('userEmail')
+        localStorage.removeItem('userName')
+        localStorage.removeItem('userPhoto')
+        localStorage.removeItem('userRole')
+        // 로그인 페이지로 이동
+        window.location.href = 'login.html?role=student'
+      } catch (error) {
+        console.error('로그아웃 오류:', error)
+        alert('로그아웃 중 오류가 발생했습니다.')
+      }
+    }
+  })
+}
 
 // 메인으로 돌아가기
 if (backBtn) {
