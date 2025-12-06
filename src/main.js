@@ -6,7 +6,7 @@ app.innerHTML = `
   <div class="main-container">
     <div class="main-card">
       <header>
-        <h1>발명 아이디어 창출 시스템</h1>
+        <h1>발명 아이디어 프로젝트 도우미</h1>
         <p class="subtitle">명세서 분석부터 아이디어 창출까지</p>
       </header>
 

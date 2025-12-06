@@ -56,13 +56,17 @@ h1 {
 }
 
 .action-buttons {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  display: flex;
+  flex-direction: row;
   gap: 24px;
+  justify-content: center;
+  align-items: stretch;
 }
 
 .action-btn {
-  width: 100%;
+  flex: 1;
+  min-width: 280px;
+  max-width: 400px;
   padding: 32px 24px;
   border: 2px solid #e2e8f0;
   border-radius: 16px;
@@ -267,7 +271,12 @@ h1 {
   }
 
   .action-buttons {
-    grid-template-columns: 1fr;
+    flex-direction: column;
+  }
+
+  .action-btn {
+    width: 100%;
+    max-width: none;
   }
 
   .user-info {
