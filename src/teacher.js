@@ -145,6 +145,7 @@ function showMonitoringView(user) {
           <div>
             <h1>교사 모니터링</h1>
             <p class="subtitle">학생들의 활동을 확인하고 관리하세요</p>
+            <button id="back-to-main-btn" class="back-btn">← 메인으로 돌아가기</button>
           </div>
           <div class="user-info">
             <div class="user-profile">
@@ -195,10 +196,17 @@ function showMonitoringView(user) {
   `
 
   // 이벤트 리스너 등록
+  const backToMainBtn = document.querySelector('#back-to-main-btn')
   const logoutBtn = document.querySelector('#logout-btn')
   const refreshBtn = document.querySelector('#refresh-btn')
   const closeModalBtn = document.querySelector('#close-modal-btn')
   const modal = document.querySelector('#activity-modal')
+
+  if (backToMainBtn) {
+    backToMainBtn.addEventListener('click', () => {
+      window.location.href = 'index.html'
+    })
+  }
 
   if (logoutBtn) {
     logoutBtn.addEventListener('click', async () => {
@@ -389,62 +397,43 @@ function showActivityModal(student) {
     return
   }
 
+  // 활동 목록을 미리보기로 표시
   modalBody.innerHTML = student.activities
-    .map((activity) => {
+    .map((activity, index) => {
       const date = activity.timestamp
         ? activity.timestamp.toDate().toLocaleString('ko-KR')
         : '날짜 없음'
 
-      let activityContent = ''
-      if (activity.type === 'analysis') {
-        activityContent = `
-          <div class="activity-detail">
-            <h4>명세서 분석</h4>
-            <p><strong>특허 이름:</strong> ${sanitize(activity.data?.patentName || '정보 없음')}</p>
-            <p><strong>출원 번호:</strong> ${sanitize(activity.data?.applicationNumber || '정보 없음')}</p>
-            ${activity.data?.features ? `<p><strong>특징:</strong> ${Array.isArray(activity.data.features) ? activity.data.features.join(', ') : activity.data.features}</p>` : ''}
-            ${activity.data?.materials ? `<p><strong>재료:</strong> ${Array.isArray(activity.data.materials) ? activity.data.materials.join(', ') : activity.data.materials}</p>` : ''}
-          </div>
-        `
-      } else if (activity.type === 'idea') {
-        activityContent = `
-          <div class="activity-detail">
-            <h4>아이디어 창출</h4>
-            ${activity.data?.ideas ? `
-              <ul>
-                ${activity.data.ideas.map((idea) => `<li><strong>${sanitize(idea.name || '아이디어')}:</strong> ${sanitize(idea.description || '')}</li>`).join('')}
-              </ul>
-            ` : '<p>아이디어 정보 없음</p>'}
-          </div>
-        `
-      } else if (activity.type === 'reflection') {
-        activityContent = `
-          <div class="activity-detail">
-            <h4>활동 소감</h4>
-            <p class="reflection-text">${sanitize(activity.data?.reflection || '소감 없음').replace(/\n/g, '<br>')}</p>
-            ${activity.data?.feedback ? `<div class="feedback-section"><h5>피드백:</h5><p>${sanitize(activity.data.feedback).replace(/\n/g, '<br>')}</p></div>` : ''}
-          </div>
-        `
-      } else {
-        activityContent = `
-          <div class="activity-detail">
-            <h4>기타 활동</h4>
-            <pre>${sanitize(JSON.stringify(activity.data, null, 2))}</pre>
-          </div>
-        `
-      }
+      const preview = getActivityPreview(activity)
 
       return `
-        <div class="activity-item">
-          <div class="activity-header">
-            <span class="activity-type">${getActivityTypeLabel(activity.type)}</span>
-            <span class="activity-date">${date}</span>
+        <div class="activity-item" style="margin-bottom: 20px; padding: 20px; background: #ffffff; border-radius: 8px; border: 1px solid #e2e8f0;">
+          <div class="activity-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; padding: 10px; background: #2563eb; border-radius: 6px;">
+            <span class="activity-type" style="font-weight: bold; font-size: 1.1rem; color: #ffffff;">${getActivityTypeLabel(activity.type)}</span>
+            <span class="activity-date" style="color: #ffffff; font-size: 0.9rem;">${date}</span>
           </div>
-          ${activityContent}
+          <div class="activity-preview" style="line-height: 1.8; margin-bottom: 15px;">
+            ${preview}
+          </div>
+          <button class="view-detail-btn" data-activity-index="${index}" style="padding: 8px 16px; background: #2563eb; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 0.9rem; font-weight: 500;">
+            상세 보기
+          </button>
         </div>
       `
     })
     .join('')
+
+  // 상세 보기 버튼 이벤트 리스너
+  const viewDetailBtns = modalBody.querySelectorAll('.view-detail-btn')
+  viewDetailBtns.forEach((btn) => {
+    btn.addEventListener('click', (e) => {
+      const index = parseInt(e.target.dataset.activityIndex)
+      const activity = student.activities[index]
+      if (activity) {
+        showActivityDetailModal(activity)
+      }
+    })
+  })
 }
 
 // 활동 타입 레이블
@@ -452,9 +441,188 @@ function getActivityTypeLabel(type) {
   const labels = {
     analysis: '명세서 분석',
     idea: '아이디어 창출',
-    reflection: '활동 소감',
+    drawing: '발명품 표현하기',
+    reflection: '오늘 활동 소감',
   }
   return labels[type] || type
+}
+
+// 활동 미리보기 생성
+function getActivityPreview(activity) {
+  const { type, data } = activity
+  
+  if (type === 'analysis') {
+    const { patentName } = data || {}
+    return `<p>${sanitize(patentName || '명세서 분석 결과')}</p>`
+  } else if (type === 'idea') {
+    const { selectedIdea, name, description } = data || {}
+    const ideaName = selectedIdea?.name || name || '아이디어'
+    const ideaDesc = selectedIdea?.description || description || ''
+    return `<p><strong>${sanitize(ideaName)}</strong><br>${sanitize(ideaDesc.substring(0, 100))}${ideaDesc.length > 100 ? '...' : ''}</p>`
+  } else if (type === 'drawing') {
+    const { image } = data || {}
+    return image ? '<p>발명품 그림이 저장되어 있습니다.</p>' : '<p>저장된 그림이 없습니다.</p>'
+  } else if (type === 'reflection') {
+    const { reflection, feedback } = data || {}
+    const preview = reflection ? sanitize(reflection.substring(0, 100)) : '소감 내용 없음'
+    return `<p>${preview}${reflection && reflection.length > 100 ? '...' : ''}</p>${feedback ? '<p style="color: #64748b; font-size: 0.9em; margin-top: 8px;">피드백 있음</p>' : ''}`
+  }
+  
+  return '<p>활동 내용</p>'
+}
+
+// 활동 상세 보기 모달 표시
+function showActivityDetailModal(activity) {
+  const { type, data, timestamp } = activity
+  const date = timestamp
+    ? timestamp.toDate().toLocaleString('ko-KR')
+    : '날짜 없음'
+  
+  let detailHtml = ''
+  
+  if (type === 'analysis') {
+    const { patentName, applicationNumber, features, materials } = data || {}
+    detailHtml = `
+      <h3>명세서 분석 결과</h3>
+      <p><strong>작성일:</strong> ${date}</p>
+      <p><strong>특허 이름:</strong> ${sanitize(patentName || '정보 없음')}</p>
+      <p><strong>출원 번호:</strong> ${sanitize(applicationNumber || '정보 없음')}</p>
+      <p><strong>발명품의 특징:</strong></p>
+      <ul>${Array.isArray(features) ? features.map(f => `<li>${sanitize(f)}</li>`).join('') : '<li>정보 없음</li>'}</ul>
+      <p><strong>발명품의 재료:</strong></p>
+      <ul>${Array.isArray(materials) ? materials.map(m => `<li>${sanitize(m)}</li>`).join('') : '<li>정보 없음</li>'}</ul>
+    `
+  } else if (type === 'idea') {
+    const { keywords, generatedIdeas, selectedIdea, chatHistory, refinedIdea } = data || {}
+    detailHtml = `
+      <h3>아이디어 창출</h3>
+      <p><strong>작성일:</strong> ${date}</p>
+      ${keywords ? `<p><strong>사용한 키워드:</strong> ${sanitize(Array.isArray(keywords) ? keywords.join(', ') : keywords)}</p>` : ''}
+      ${generatedIdeas && Array.isArray(generatedIdeas) && generatedIdeas.length > 0 ? `
+        <div style="margin-bottom: 20px;">
+          <p><strong>생성된 아이디어:</strong></p>
+          <ul>
+            ${generatedIdeas.map((idea) => `<li><strong>${sanitize(idea.name || '아이디어')}:</strong> ${sanitize(idea.description || '')}</li>`).join('')}
+          </ul>
+        </div>
+      ` : ''}
+      ${selectedIdea ? `
+        <div style="margin-bottom: 20px;">
+          <p><strong>선택한 아이디어:</strong> ${sanitize(selectedIdea.name || '정보 없음')}</p>
+          <p style="white-space: pre-wrap;">${sanitize(selectedIdea.description || '정보 없음')}</p>
+        </div>
+      ` : ''}
+      ${chatHistory && Array.isArray(chatHistory) && chatHistory.length > 0 ? `
+        <p><strong>대화 내용:</strong></p>
+        <div style="max-height: 300px; overflow-y: auto; padding: 10px; background: #f8fafc; border-radius: 8px;">
+          ${chatHistory.map(msg => {
+            const role = msg.role === 'user' ? '학생' : '도우미'
+            return `<p><strong>${role}:</strong> ${sanitize(msg.content || '')}</p>`
+          }).join('')}
+        </div>
+      ` : ''}
+      ${refinedIdea ? `
+        <div style="margin-top: 20px;">
+          <p><strong>구체화된 아이디어:</strong></p>
+          ${typeof refinedIdea === 'string' 
+            ? `<p style="white-space: pre-wrap;">${sanitize(refinedIdea)}</p>`
+            : `
+              <div style="padding: 15px; background: #f0fdf4; border-radius: 8px;">
+                ${refinedIdea.description ? `<p><strong>아이디어 설명:</strong> ${sanitize(refinedIdea.description)}</p>` : ''}
+                ${refinedIdea.features ? `<p><strong>특징:</strong> ${Array.isArray(refinedIdea.features) ? refinedIdea.features.map(f => sanitize(f)).join(', ') : sanitize(refinedIdea.features)}</p>` : ''}
+                ${refinedIdea.materials ? `<p><strong>준비물:</strong> ${Array.isArray(refinedIdea.materials) ? refinedIdea.materials.map(m => sanitize(m)).join(', ') : sanitize(refinedIdea.materials)}</p>` : ''}
+                ${refinedIdea.tools ? `<p><strong>필요한 도구:</strong> ${Array.isArray(refinedIdea.tools) ? refinedIdea.tools.map(t => sanitize(t)).join(', ') : sanitize(refinedIdea.tools)}</p>` : ''}
+                ${refinedIdea.manufacturing ? `<p><strong>제작방법:</strong> ${sanitize(refinedIdea.manufacturing)}</p>` : ''}
+                ${refinedIdea.notes ? `<p><strong>유의사항:</strong> ${sanitize(refinedIdea.notes)}</p>` : ''}
+              </div>
+            `}
+        </div>
+      ` : ''}
+    `
+  } else if (type === 'drawing') {
+    const { image } = data || {}
+    detailHtml = `
+      <h3>발명품 표현하기</h3>
+      <p><strong>작성일:</strong> ${date}</p>
+      ${image ? `
+        <p><strong>그린 그림:</strong></p>
+        <div style="text-align: center; margin-top: 20px;">
+          <img src="${image}" alt="발명품 그림" style="max-width: 100%; height: auto; border-radius: 8px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);" />
+        </div>
+      ` : '<p>저장된 그림이 없습니다.</p>'}
+    `
+  } else if (type === 'reflection') {
+    const { reflection, feedback } = data || {}
+    detailHtml = `
+      <h3>오늘 활동 소감</h3>
+      <p><strong>작성일:</strong> ${date}</p>
+      ${reflection ? `
+        <div style="margin-bottom: 25px;">
+          <p><strong>학생 소감:</strong></p>
+          <div style="padding: 15px; background: #f8fafc; border-radius: 8px; white-space: pre-wrap; line-height: 1.8;">${sanitize(reflection)}</div>
+        </div>
+      ` : '<p>소감 내용이 없습니다.</p>'}
+      ${feedback ? `
+        <div>
+          <p><strong>교사 피드백:</strong></p>
+          <div style="padding: 15px; background: #ecfdf5; border-radius: 8px; white-space: pre-wrap; line-height: 1.8;">${sanitize(feedback)}</div>
+        </div>
+      ` : '<p>피드백이 아직 생성되지 않았습니다.</p>'}
+    `
+  } else {
+    detailHtml = `
+      <h3>기타 활동</h3>
+      <pre>${sanitize(JSON.stringify(data, null, 2))}</pre>
+    `
+  }
+  
+  // 상세 보기 모달 생성
+  const detailModalHtml = `
+    <div id="activity-detail-modal" class="activity-detail-modal" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.5); display: flex; justify-content: center; align-items: center; z-index: 10000;">
+      <div class="modal-content" style="background: white; border-radius: 12px; max-width: 800px; max-height: 90vh; overflow-y: auto; padding: 0; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);">
+        <div class="modal-header" style="display: flex; justify-content: space-between; align-items: center; padding: 20px; border-bottom: 1px solid #e2e8f0;">
+          <h2 style="margin: 0; font-size: 1.5rem; font-weight: bold;">활동 상세 내용</h2>
+          <button id="detail-modal-close-btn" class="close-btn" style="background: none; border: none; font-size: 2rem; cursor: pointer; color: #64748b; padding: 0; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center;">×</button>
+        </div>
+        <div class="modal-body" style="padding: 20px; line-height: 1.8;">
+          ${detailHtml}
+        </div>
+      </div>
+    </div>
+  `
+  
+  document.body.insertAdjacentHTML('beforeend', detailModalHtml)
+  
+  const detailModal = document.getElementById('activity-detail-modal')
+  const detailCloseBtn = document.getElementById('detail-modal-close-btn')
+  const detailOverlay = detailModal
+  
+  const closeDetailModal = () => {
+    if (detailModal && detailModal.parentNode) {
+      detailModal.parentNode.removeChild(detailModal)
+    }
+  }
+  
+  if (detailCloseBtn) {
+    detailCloseBtn.addEventListener('click', closeDetailModal)
+  }
+  
+  if (detailOverlay) {
+    detailOverlay.addEventListener('click', (e) => {
+      if (e.target === detailOverlay) {
+        closeDetailModal()
+      }
+    })
+  }
+  
+  // ESC 키로 닫기
+  const handleEsc = (e) => {
+    if (e.key === 'Escape') {
+      closeDetailModal()
+      document.removeEventListener('keydown', handleEsc)
+    }
+  }
+  document.addEventListener('keydown', handleEsc)
 }
 
 // 에러 표시

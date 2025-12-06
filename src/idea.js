@@ -57,7 +57,7 @@ if (!analysisData || Object.keys(analysisData).length === 0) {
       <section class="chat-section" id="chat-section" style="display: none;">
         <div class="section-header">
           <h2>2단계: 발명 도우미 챗봇</h2>
-          <p>선택한 아이디어를 구체화하기 위해 교사와 대화하듯이 질문해 보세요. 최대 10번까지 질문할 수 있고, 마지막에는 지금까지의 내용을 정리해 줍니다.</p>
+          <p>선택한 아이디어를 구체화하기 위해 교사와 대화하듯이 질문해 보세요. 최대 10번까지 질문할 수 있습니다.</p>
         </div>
         <div id="selected-idea" class="selected-idea"></div>
         <div id="chat-messages" class="chat-messages"></div>
@@ -67,6 +67,11 @@ if (!analysisData || Object.keys(analysisData).length === 0) {
             <button id="send-btn" type="button">전송</button>
             <button id="save-chat-btn" type="button" disabled>대화 내용 저장하기</button>
           </div>
+        </div>
+        <div class="refine-action" style="margin-top: 20px; text-align: center;">
+          <button id="refine-idea-btn" type="button" disabled style="padding: 12px 24px; font-size: 1rem; font-weight: 600; background: #2563eb; color: white; border: none; border-radius: 8px; cursor: pointer; transition: background 150ms ease;">
+            아이디어 구체화
+          </button>
         </div>
       </section>
 
@@ -92,6 +97,7 @@ const chatMessages = document.querySelector('#chat-messages')
 const chatInput = document.querySelector('#chat-input')
 const sendBtn = document.querySelector('#send-btn')
 const saveChatBtn = document.querySelector('#save-chat-btn')
+const refineIdeaBtn = document.querySelector('#refine-idea-btn')
 const refinedIdeasSection = document.querySelector('#refined-ideas')
 const refinedCards = document.querySelector('#refined-cards')
 const saveResultBtn = document.querySelector('#save-result-btn')
@@ -190,6 +196,7 @@ if (regenerateIdeasBtn) {
     chatSection.style.display = 'none'
     refinedIdeasSection.style.display = 'none'
     if (saveChatBtn) saveChatBtn.disabled = true
+    if (refineIdeaBtn) refineIdeaBtn.disabled = true
 
     isGenerating = true
     const originalText = regenerateIdeasBtn.textContent
@@ -230,17 +237,60 @@ if (saveChatBtn) {
     }
 
     saveChatBtn.disabled = true
-    saveChatBtn.textContent = 'PDF 생성 중...'
+    saveChatBtn.textContent = '저장 중...'
 
     try {
       const selectedIdea = generatedIdeas[selectedIdeaIndex]
+      
+      // PDF 생성
       await generateChatPdf(selectedIdea, chatHistory)
+      
+      // Firebase에 대화 내용 저장
+      const { saveStudentActivity } = await import('./activityStorage.js')
+      await saveStudentActivity('idea', {
+        ideas: generatedIdeas,
+        keywords: lastKeywords,
+        selectedIdea: selectedIdea,
+        chatHistory: chatHistory,
+        refinedIdea: refinedIdeasData.length > 0 ? refinedIdeasData[refinedIdeasData.length - 1] : null
+      })
+      
+      alert('대화 내용이 저장되었습니다!')
     } catch (error) {
-      console.error('PDF 저장 오류:', error)
-      alert('PDF 저장 중 오류가 발생했습니다.')
+      console.error('저장 오류:', error)
+      alert('저장 중 오류가 발생했습니다.')
     } finally {
       saveChatBtn.disabled = false
       saveChatBtn.textContent = '대화 내용 저장하기'
+    }
+  })
+}
+
+if (refineIdeaBtn) {
+  refineIdeaBtn.addEventListener('click', async () => {
+    if (chatHistory.length === 0 || selectedIdeaIndex === -1) {
+      alert('먼저 아이디어를 선택하고 대화를 나눈 후 구체화할 수 있습니다.')
+      return
+    }
+
+    const apiKey = import.meta.env.VITE_OPENAI_API_KEY
+    if (!apiKey) {
+      alert('.env 파일에 VITE_OPENAI_API_KEY를 설정해 주세요.')
+      return
+    }
+
+    refineIdeaBtn.disabled = true
+    refineIdeaBtn.textContent = '구체화 중...'
+
+    try {
+      const selectedIdea = generatedIdeas[selectedIdeaIndex]
+      await refineIdea(apiKey, selectedIdea, chatHistory)
+      refineIdeaBtn.textContent = '아이디어 구체화 완료'
+    } catch (error) {
+      console.error('구체화 오류:', error)
+      alert('아이디어 구체화 중 오류가 발생했습니다.')
+      refineIdeaBtn.disabled = false
+      refineIdeaBtn.textContent = '아이디어 구체화'
     }
   })
 }
@@ -453,6 +503,7 @@ function selectIdea(index, idea) {
   ]
   renderChatMessages()
   chatInput.focus()
+  if (refineIdeaBtn) refineIdeaBtn.disabled = true
 }
 
 async function sendMessage() {
@@ -497,21 +548,34 @@ async function sendMessage() {
       saveChatBtn.disabled = false
     }
 
-    // 대화가 충분히 진행되었는지 확인하고 구체화된 아이디어 생성
+    // 대화가 있으면 아이디어 구체화 버튼 활성화
     const userMessageCount = chatHistory.filter((m) => m.role === 'user').length
-    if (userMessageCount >= 3 && refinedIdeasData.length === 0) {
-      try {
-        await refineIdea(apiKey, selectedIdea, chatHistory)
-      } catch (refineError) {
-        console.error('Refine error:', refineError)
-        // 구체화 실패해도 대화는 계속 가능
-      }
+    if (userMessageCount >= 1 && refineIdeaBtn) {
+      refineIdeaBtn.disabled = false
     }
 
     // 최대 대화 횟수에 도달하면 입력 비활성화
     if (userMessageCount >= MAX_CHAT_TURNS) {
       chatInput.disabled = true
       sendBtn.disabled = true
+      
+      // 마지막 대화 턴 완료 시 Firebase에 저장
+      if (selectedIdeaIndex !== -1) {
+        try {
+          const { saveStudentActivity } = await import('./activityStorage.js')
+          const selectedIdea = generatedIdeas[selectedIdeaIndex]
+          await saveStudentActivity('idea', {
+            ideas: generatedIdeas,
+            keywords: lastKeywords,
+            selectedIdea: selectedIdea,
+            chatHistory: chatHistory,
+            refinedIdea: refinedIdeasData.length > 0 ? refinedIdeasData[refinedIdeasData.length - 1] : null
+          })
+        } catch (error) {
+          console.error('자동 저장 오류:', error)
+        }
+      }
+      
       // 안내 메시지 추가 (추가 턴으로 치지 않기 위해 chatHistory에는 넣지 않음)
       alert(
         `이 아이디어에 대해 ${MAX_CHAT_TURNS}번의 질문을 모두 마쳤습니다.\n` +
@@ -628,13 +692,17 @@ async function refineIdea(apiKey, idea, history) {
 대화 내용:
 ${conversationText}
 
+중요: 대화 내용에서 직접 언급된 정보만 사용하고, 대화에서 찾을 수 없는 정보는 "*제안*"이라는 표시를 앞에 붙여서 제안으로 제시해주세요.
+
 다음 JSON 형식으로 응답해주세요:
 {
   "name": "아이디어 이름",
-  "description": "아이디어에 대한 전체 설명",
-  "features": ["특징1", "특징2"],
-  "manufacturing": "제작 방법 설명",
-  "notes": "유의사항"
+  "description": "아이디어에 대한 전체 설명 (대화에서 찾을 수 없으면 *제안* 표시)",
+  "features": ["특징1 (대화에서 찾을 수 없으면 *제안* 표시)", "특징2"],
+  "materials": ["준비물1 (대화에서 찾을 수 없으면 *제안* 표시)", "준비물2"],
+  "tools": ["필요한 도구1 (대화에서 찾을 수 없으면 *제안* 표시)", "필요한 도구2"],
+  "manufacturing": "제작 방법 설명 (대화에서 찾을 수 없으면 *제안* 표시)",
+  "notes": "유의사항 (대화에서 찾을 수 없으면 *제안* 표시)"
 }`
 
   const response = await fetch(OPENAI_URL, {
@@ -668,8 +736,30 @@ ${conversationText}
 
   const refined = parseAiJson(aiText)
 
-  refinedIdeasData.push(refined)
+  // 기존 구체화된 아이디어가 있으면 교체, 없으면 추가
+  if (refinedIdeasData.length > 0) {
+    refinedIdeasData[0] = refined
+  } else {
+    refinedIdeasData.push(refined)
+  }
   displayRefinedIdeas(refinedIdeasData)
+  
+  // 구체화된 아이디어 생성 시 Firebase에 저장
+  if (selectedIdeaIndex !== -1) {
+    try {
+      const { saveStudentActivity } = await import('./activityStorage.js')
+      const selectedIdea = generatedIdeas[selectedIdeaIndex]
+      await saveStudentActivity('idea', {
+        ideas: generatedIdeas,
+        keywords: lastKeywords,
+        selectedIdea: selectedIdea,
+        chatHistory: chatHistory,
+        refinedIdea: refined
+      })
+    } catch (error) {
+      console.error('구체화된 아이디어 저장 오류:', error)
+    }
+  }
 }
 
 function displayRefinedIdeas(refined) {
@@ -683,19 +773,27 @@ function displayRefinedIdeas(refined) {
       <div class="refined-content">
         <div class="refined-section">
           <h4>아이디어 설명</h4>
-          <p>${sanitize(idea.description)}</p>
+          <p>${sanitize(idea.description || '')}</p>
         </div>
         <div class="refined-section">
           <h4>특징</h4>
-          <ul>${(Array.isArray(idea.features) ? idea.features : [idea.features]).map((f) => `<li>${sanitize(f)}</li>`).join('')}</ul>
+          <ul>${(Array.isArray(idea.features) ? idea.features : [idea.features || '']).map((f) => `<li>${sanitize(f)}</li>`).join('')}</ul>
+        </div>
+        <div class="refined-section">
+          <h4>준비물</h4>
+          <ul>${(Array.isArray(idea.materials) ? idea.materials : [idea.materials || '']).map((m) => `<li>${sanitize(m)}</li>`).join('')}</ul>
+        </div>
+        <div class="refined-section">
+          <h4>필요한 도구</h4>
+          <ul>${(Array.isArray(idea.tools) ? idea.tools : [idea.tools || '']).map((t) => `<li>${sanitize(t)}</li>`).join('')}</ul>
         </div>
         <div class="refined-section">
           <h4>제작 방법</h4>
-          <p>${sanitize(idea.manufacturing)}</p>
+          <p>${sanitize(idea.manufacturing || '')}</p>
         </div>
         <div class="refined-section">
           <h4>유의사항</h4>
-          <p>${sanitize(idea.notes)}</p>
+          <p>${sanitize(idea.notes || '')}</p>
         </div>
       </div>
     </article>

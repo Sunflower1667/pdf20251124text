@@ -334,7 +334,9 @@ body {
 
 /* 모달 스타일 */
 .past-activities-modal,
-.activity-detail-modal {
+.activity-detail-modal,
+.reflection-modal,
+.completion-modal {
   position: fixed;
   top: 0;
   left: 0;
@@ -411,6 +413,31 @@ body {
   padding: 24px;
   overflow-y: auto;
   flex: 1;
+}
+
+.reflection-modal-body {
+  padding: 0;
+  height: calc(100vh - 150px);
+  min-height: 600px;
+}
+
+.reflection-modal-content {
+  max-width: 900px;
+  height: 90vh;
+  max-height: 900px;
+  display: flex;
+  flex-direction: column;
+}
+
+.completion-modal-content {
+  text-align: center;
+  padding: 40px;
+  max-width: 500px;
+}
+
+.completion-icon {
+  font-size: 4rem;
+  margin-bottom: 20px;
 }
 
 .activities-list {

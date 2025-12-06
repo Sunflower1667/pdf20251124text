@@ -6,7 +6,7 @@ const app = document.querySelector('#app')
 app.innerHTML = `
   <div class="shell">
     <header>
-      <h1>발명품 그림 그리기</h1>
+      <h1>발명품 표현하기</h1>
       <p class="subtitle">만들고 싶은 발명품을 직접 그려보세요!</p>
     </header>
 
@@ -15,6 +15,8 @@ app.innerHTML = `
         <div class="tool-group">
           <label>도구</label>
           <div class="tool-buttons">
+            <button id="upload-image-btn" class="tool-btn">📷 그림 업로드</button>
+            <input type="file" id="image-upload-input" accept="image/*" style="display: none;" />
             <button id="pen-tool" class="tool-btn active" data-tool="pen">✏️ 펜</button>
             <button id="eraser-tool" class="tool-btn" data-tool="eraser">🧹 지우개</button>
             <button id="clear-btn" class="tool-btn danger">🗑️ 전체 지우기</button>
@@ -64,6 +66,8 @@ const cursorPreview = document.querySelector('#cursor-preview')
 const colorInput = document.querySelector('#color-input')
 const brushSize = document.querySelector('#brush-size')
 const brushSizeValue = document.querySelector('#brush-size-value')
+const uploadImageBtn = document.querySelector('#upload-image-btn')
+const imageUploadInput = document.querySelector('#image-upload-input')
 const penTool = document.querySelector('#pen-tool')
 const eraserTool = document.querySelector('#eraser-tool')
 const clearBtn = document.querySelector('#clear-btn')
@@ -141,13 +145,56 @@ toolButtons.forEach(btn => {
   })
 })
 
+// 그림 업로드
+if (uploadImageBtn && imageUploadInput) {
+  uploadImageBtn.addEventListener('click', () => {
+    imageUploadInput.click()
+  })
+
+  imageUploadInput.addEventListener('change', (e) => {
+    const file = e.target.files[0]
+    if (!file) return
+
+    if (!file.type.startsWith('image/')) {
+      alert('이미지 파일만 업로드할 수 있습니다.')
+      return
+    }
+
+    const reader = new FileReader()
+    reader.onload = (event) => {
+      const img = new Image()
+      img.onload = () => {
+        // 캔버스에 이미지 그리기 (캔버스 크기에 맞게 조정)
+        const scale = Math.min(
+          canvas.width / img.width,
+          canvas.height / img.height,
+          1 // 원본보다 크게 하지 않음
+        )
+        
+        const x = (canvas.width - img.width * scale) / 2
+        const y = (canvas.height - img.height * scale) / 2
+
+        // 기존 내용 위에 이미지 그리기
+        ctx.drawImage(img, x, y, img.width * scale, img.height * scale)
+      }
+      img.src = event.target.result
+    }
+    reader.readAsDataURL(file)
+    
+    // 같은 파일을 다시 선택할 수 있도록 input 초기화
+    e.target.value = ''
+  })
+}
+
 // 전체 지우기
-clearBtn.addEventListener('click', () => {
-  if (confirm('정말로 그림을 모두 지우시겠습니까?')) {
-    ctx.fillStyle = '#ffffff'
-    ctx.fillRect(0, 0, canvas.width, canvas.height)
-  }
-})
+if (clearBtn) {
+  clearBtn.addEventListener('click', () => {
+    if (confirm('정말로 그림을 모두 지우시겠습니까?')) {
+      ctx.fillStyle = '#ffffff'
+      ctx.fillRect(0, 0, canvas.width, canvas.height)
+    }
+  })
+}
 
 // 마우스 이벤트
 function getMousePos(e) {

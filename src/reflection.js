@@ -40,6 +40,7 @@ app.innerHTML = `
       <div id="feedback-content" class="feedback-content"></div>
       <div class="feedback-actions">
         <button id="save-with-feedback-btn" type="button">소감과 피드백 함께 저장하기</button>
+        <button id="finish-activity-btn" type="button" style="display: none;">활동 종료하기</button>
       </div>
     </section>
   </div>
@@ -52,6 +53,7 @@ const statusMessage = document.querySelector('#status-message')
 const feedbackSection = document.querySelector('#feedback-section')
 const feedbackContent = document.querySelector('#feedback-content')
 const saveWithFeedbackBtn = document.querySelector('#save-with-feedback-btn')
+const finishActivityBtn = document.querySelector('#finish-activity-btn')
 
 let feedbackText = ''
 
@@ -91,7 +93,7 @@ getFeedbackBtn.addEventListener('click', async () => {
 
   getFeedbackBtn.disabled = true
   getFeedbackBtn.textContent = '제출 및 피드백 생성 중...'
-  statusMessage.textContent = '소감을 제출하고 AI가 피드백을 작성하고 있습니다...'
+  statusMessage.textContent = '소감을 제출하고 발명아이디어 보조교사가 피드백을 작성하고 있습니다...'
   statusMessage.dataset.mode = 'info'
 
   try {
@@ -99,12 +101,23 @@ getFeedbackBtn.addEventListener('click', async () => {
     const { saveStudentActivity } = await import('./activityStorage.js')
     await saveStudentActivity('reflection', { reflection: text })
     
-    feedbackText = await generateFeedback(apiKey, text)
+    // 이전 활동 가져오기
+    const { getRecentActivities } = await import('./activityStorage.js')
+    const activities = await getRecentActivities()
+    
+    feedbackText = await generateFeedback(apiKey, text, activities)
     feedbackContent.innerHTML = `
       <div class="feedback-text">${sanitize(feedbackText).replace(/\n/g, '<br>')}</div>
     `
     feedbackSection.style.display = 'block'
-    statusMessage.textContent = '소감이 제출되었고 피드백이 생성되었습니다.'
+    
+    // 활동 종료하기 버튼 표시 (모달에서 열렸는지 확인)
+    if (window.parent !== window && finishActivityBtn) {
+      // iframe 안에서 실행 중 (모달에서 열림)
+      finishActivityBtn.style.display = 'inline-block'
+    }
+    
+    statusMessage.textContent = '피드백이 생성되었습니다.'
     statusMessage.dataset.mode = 'success'
   } catch (error) {
     console.error('피드백 생성 오류:', error)
@@ -115,6 +128,47 @@ getFeedbackBtn.addEventListener('click', async () => {
     getFeedbackBtn.textContent = '소감 제출 및 피드백 받기'
   }
 })
+
+// 활동 종료하기 버튼
+if (finishActivityBtn) {
+  finishActivityBtn.addEventListener('click', async () => {
+    const text = reflectionText.value.trim()
+    if (!text) {
+      alert('소감을 먼저 작성해주세요.')
+      return
+    }
+
+    if (!feedbackText) {
+      alert('피드백을 먼저 받아주세요.')
+      return
+    }
+
+    finishActivityBtn.disabled = true
+    finishActivityBtn.textContent = '활동 종료 중...'
+
+    try {
+      // Firebase에 최종 저장 (피드백 포함)
+      const { saveStudentActivity } = await import('./activityStorage.js')
+      await saveStudentActivity('reflection', { reflection: text, feedback: feedbackText })
+      
+      // 부모 창에 메시지 전송 (모달에서 열렸는지 확인)
+      if (window.parent !== window) {
+        window.parent.postMessage('finish-activity', '*')
+      } else {
+        // 직접 열렸을 경우
+        const { generateFinalPdf } = await import('./studentActivity.js')
+        await generateFinalPdf()
+        alert('활동이 완료되었습니다! 모든 내용이 PDF로 저장되었습니다.')
+        window.location.href = 'index.html'
+      }
+    } catch (error) {
+      console.error('활동 종료 오류:', error)
+      alert('활동 종료 중 오류가 발생했습니다.')
+      finishActivityBtn.disabled = false
+      finishActivityBtn.textContent = '활동 종료하기'
+    }
+  })
+}
 
 // 소감과 피드백 함께 저장
 saveWithFeedbackBtn.addEventListener('click', async () => {
@@ -152,19 +206,59 @@ saveWithFeedbackBtn.addEventListener('click', async () => {
   }
 })
 
-async function generateFeedback(apiKey, reflection) {
+async function generateFeedback(apiKey, reflection, activities = {}) {
+  // 이전 활동 정보 정리
+  let activitySummary = ''
+  
+  if (activities.analysis) {
+    const { patentName, features, materials } = activities.analysis.data || {}
+    activitySummary += `\n1. 명세서 분석 활동:\n`
+    activitySummary += `   - 분석한 특허: ${patentName || '정보 없음'}\n`
+    if (features && Array.isArray(features)) {
+      activitySummary += `   - 발명품 특징: ${features.slice(0, 3).join(', ')}\n`
+    }
+    if (materials && Array.isArray(materials)) {
+      activitySummary += `   - 사용 재료: ${materials.slice(0, 3).join(', ')}\n`
+    }
+  }
+  
+  if (activities.idea) {
+    const { selectedIdea, chatHistory, refinedIdea } = activities.idea.data || {}
+    activitySummary += `\n2. 발명 아이디어 창출 활동:\n`
+    if (selectedIdea) {
+      activitySummary += `   - 선택한 아이디어: ${selectedIdea.name || '정보 없음'}\n`
+      activitySummary += `   - 아이디어 설명: ${(selectedIdea.description || '').substring(0, 100)}...\n`
+    }
+    if (chatHistory && Array.isArray(chatHistory)) {
+      activitySummary += `   - 대화 횟수: ${chatHistory.filter(m => m.role === 'user').length}번\n`
+    }
+    if (refinedIdea) {
+      activitySummary += `   - 구체화된 아이디어: 완료\n`
+    }
+  }
+  
+  if (activities.drawing) {
+    const { image } = activities.drawing.data || {}
+    activitySummary += `\n3. 발명품 표현하기 활동:\n`
+    activitySummary += `   - 그림: ${image ? '완료' : '미완료'}\n`
+  }
+  
   const prompt = `학생이 오늘 활동에 대한 소감을 작성했습니다. 교사로서 따뜻하고 격려하는 말투로 피드백과 평가를 해주세요.
+
+학생이 오늘 수행한 활동들:
+${activitySummary || '활동 정보 없음'}
 
 학생의 소감:
 ${reflection}
 
 다음 내용을 포함하여 피드백을 작성해주세요:
-1. 학생의 노력과 성장을 인정하는 내용
-2. 잘한 점과 칭찬할 부분
-3. 더 개선할 수 있는 부분에 대한 조언
-4. 격려와 응원의 메시지
+1. 학생이 수행한 활동들(명세서 분석, 아이디어 창출, 발명품 표현하기)과 소감을 연결하여 종합적으로 평가
+2. 각 활동에서 보인 노력과 성장을 구체적으로 인정하는 내용
+3. 잘한 점과 칭찬할 부분 (특히 활동과 소감을 연결하여)
+4. 더 개선할 수 있는 부분에 대한 조언
+5. 격려와 응원의 메시지
 
-교사의 말투로 친근하고 따뜻하게 작성해주세요.`
+교사의 말투로 친근하고 따뜻하게 작성해주세요. 학생이 중학생이므로 쉬운 용어를 사용하고, 활동 내용과 소감을 자연스럽게 연결하여 피드백해주세요.`
 
   const response = await fetch(OPENAI_URL, {
     method: 'POST',
