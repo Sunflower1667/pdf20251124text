@@ -5,6 +5,10 @@
 [build.environment]
   NODE_VERSION = "20"
   NPM_FLAGS = "--legacy-peer-deps"
+  # 아래 변수들은 Netlify 대시보드 Site configuration → Environment variables 에서 설정해야 합니다(.env는 git에 없음).
+  # 이름은 정확히 VITE_ 로 시작해야 하며, Scopes에서 Production / Deploy previews 등 실제로 쓰는 배포에 모두 넣어야 합니다.
+  # VITE_FIREBASE_API_KEY, VITE_FIREBASE_AUTH_DOMAIN, VITE_FIREBASE_PROJECT_ID,
+  # VITE_FIREBASE_STORAGE_BUCKET, VITE_FIREBASE_MESSAGING_SENDER_ID, VITE_FIREBASE_APP_ID
 
 # 멀티 페이지 애플리케이션을 위한 리다이렉트 설정
 # 각 HTML 파일에 직접 접근 가능하도록 설정

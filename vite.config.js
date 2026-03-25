@@ -1,8 +1,25 @@
 // vite.config.js
 import { resolve } from 'path'
-import { defineConfig } from 'vite'
+import { defineConfig, loadEnv } from 'vite'
 
-export default defineConfig({
+export default defineConfig(({ mode }) => {
+  const envFromFiles = loadEnv(mode, process.cwd(), 'VITE_')
+  const bucket =
+    (process.env.VITE_FIREBASE_STORAGE_BUCKET || envFromFiles.VITE_FIREBASE_STORAGE_BUCKET || '').trim()
+
+  if (!bucket) {
+    console.warn(
+      '\n[vite] VITE_FIREBASE_STORAGE_BUCKET 이(가) 빌드 시점에 비어 있습니다.\n' +
+        '  · Netlify: Site configuration → Environment variables → 이름은 정확히 VITE_FIREBASE_STORAGE_BUCKET\n' +
+        '    (Scopes에서 **Production**뿐 아니라 쓰는 **Deploy previews / Branch deploys**에도 같은 변수를 넣었는지 확인)\n' +
+        '  · 저장 후 **Deploys → Trigger deploy → Clear cache and deploy** 로 다시 빌드\n' +
+        '  · 로컬: .env 저장 후 터미널에서 dev 서버 종료 → npm run dev 또는 npm run build\n'
+    )
+  } else {
+    console.log('[vite] VITE_FIREBASE_STORAGE_BUCKET ✓ 빌드에 포함됩니다.')
+  }
+
+  return {
     // 빌드 출력 디렉토리
     build: {
         outDir: 'dist',
@@ -82,4 +99,5 @@ export default defineConfig({
         port: 4173,
         open: true,
     },
+  }
 })

@@ -36,17 +36,21 @@ function attachServices(firebaseApp) {
 
   if (!firebaseConfig.storageBucket) {
     storage = null
-    console.warn(
-      '[Firebase] VITE_FIREBASE_STORAGE_BUCKET이 비어 있습니다. Firebase Console → 프로젝트 설정 → 일반 에서 bucket(예: your-project-id.appspot.com)을 확인하고 .env에 넣어 주세요.'
-    )
     return
   }
 
   try {
-    storage = getStorage(firebaseApp)
+    const raw = firebaseConfig.storageBucket.replace(/^gs:\/\//, '')
+    const bucketGs = `gs://${raw}`
+    storage = getStorage(firebaseApp, bucketGs)
   } catch (e) {
-    console.error('[Firebase] Storage 초기화 실패:', e)
-    storage = null
+    console.warn('[Firebase] getStorage(gs://…) 실패, 기본 버킷으로 재시도:', e)
+    try {
+      storage = getStorage(firebaseApp)
+    } catch (e2) {
+      console.error('[Firebase] Storage 초기화 실패:', e2)
+      storage = null
+    }
   }
 }
 
@@ -108,6 +112,12 @@ if (import.meta.env.DEV) {
   console.log('[Firebase] storageBucket:', firebaseConfig.storageBucket ? '설정됨' : '없음 — Storage API 사용 시 bucket 오류가 납니다')
 }
 
-if (!import.meta.env.VITE_FIREBASE_STORAGE_BUCKET) {
-  console.warn('[Firebase] VITE_FIREBASE_STORAGE_BUCKET 미설정. 파일 업로드/Storage 전용 기능이 동작하지 않을 수 있습니다.')
+/* Vite는 빌드할 때만 import.meta.env.VITE_* 를 코드에 박습니다. .env만 고치고 재시작/재빌드·재배포를 안 하면 예전(빈 값) 번들이 그대로입니다. */
+if (!firebaseConfig.storageBucket) {
+  console.warn(
+    '[Firebase] Storage bucket이 이 빌드에 포함되어 있지 않습니다.\n' +
+      '· 로컬: 프로젝트 루트 `.env`에 `VITE_FIREBASE_STORAGE_BUCKET`을 넣은 뒤 **`npm run dev`를 완전히 끄고 다시 실행**, 또는 **`npm run build` 후 `dist`를 다시 사용**하세요.\n' +
+      '· Netlify/Vercel 등: 사이트 설정의 **Environment variables**에 같은 이름으로 값을 넣고 **재배포**하세요(저장소에 없는 `.env`는 배포 빌드에 자동으로 안 올라갑니다).\n' +
+      '· 값: Firebase Console → 프로젝트 설정 → 일반 → `storageBucket` (예: `프로젝트ID.appspot.com` 또는 `프로젝트ID.firebasestorage.app`).'
+  )
 }

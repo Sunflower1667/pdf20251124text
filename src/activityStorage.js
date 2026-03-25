@@ -76,8 +76,9 @@ export async function saveFinalPdfToStorage(pdfBlob, fileName) {
 
   let storage = firebaseResult.storage
   if (!storage) {
+    const b = (import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || '').trim().replace(/^gs:\/\//, '')
     try {
-      storage = getStorage(firebaseResult.app)
+      storage = b ? getStorage(firebaseResult.app, `gs://${b}`) : getStorage(firebaseResult.app)
     } catch (e) {
       console.warn('[Storage] 초기화 실패, PDF 업로드 건너뜀:', e?.message || e)
       return null
