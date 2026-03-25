@@ -1,7 +1,6 @@
 // 학생 활동을 Firebase Firestore에 저장하고 조회하는 유틸리티 함수
 import { initFirebase } from './firebaseConfig.js'
 import { getFirestore, collection, addDoc, doc, setDoc, serverTimestamp, getDocs, query, orderBy, limit } from 'firebase/firestore'
-import { getStorage, ref, uploadBytes, getDownloadURL, listAll } from 'firebase/storage'
 
 /**
  * 학생 활동을 Firebase에 저장

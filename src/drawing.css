@@ -80,6 +80,22 @@ h1::before {
   align-items: flex-start;
 }
 
+.pen-input-hint {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  font-size: 0.85rem;
+  color: #475569;
+  line-height: 1.45;
+  cursor: pointer;
+  max-width: 48rem;
+}
+
+.pen-input-hint input {
+  margin-top: 0.2rem;
+  flex-shrink: 0;
+}
+
 .tool-row {
   display: flex;
   gap: 16px;
