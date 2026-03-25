@@ -248,6 +248,8 @@ h1::before {
   cursor: crosshair;
   background: #ffffff;
   touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 .cursor-preview {

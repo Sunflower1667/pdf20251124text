@@ -39,6 +39,13 @@ body {
   top: 0;
   z-index: 100;
   display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 16px;
+}
+
+.dashboard-header-top {
+  display: flex;
   justify-content: space-between;
   align-items: flex-start;
   gap: 24px;
@@ -217,28 +224,23 @@ body {
   box-shadow: 0 4px 12px rgba(15, 23, 42, 0.15);
 }
 
+/* 활동 단계: 전체 너비 5열 그리드로 한눈에 가로 배치 */
 .activity-nav {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  margin-top: 16px;
-  padding-top: 16px;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+  width: 100%;
+  margin: 0;
+  padding: 16px 0 0;
   border-top: 1px solid #e2e8f0;
-}
-
-/* 넓은 화면: 버튼 문구 줄바꿈 허용 */
-@media (min-width: 1200px) {
-  .activity-nav-btn {
-    white-space: normal;
-    max-width: 220px;
-  }
+  box-sizing: border-box;
 }
 
 .activity-nav-btn {
-  padding: 10px 16px;
+  padding: 10px 8px;
   border: 2px solid #e2e8f0;
   border-radius: 12px;
-  font-size: 0.9rem;
+  font-size: clamp(0.72rem, 1.05vw, 0.88rem);
   font-weight: 600;
   font-family: inherit;
   background: #f8fafc;
@@ -246,42 +248,29 @@ body {
   cursor: pointer;
   transition: all 180ms ease;
   text-align: center;
-  line-height: 1.35;
+  line-height: 1.3;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  hyphens: auto;
+  word-break: keep-all;
 }
 
-/*
- * 태블릿·아이패드·좁은 창: 단계 버튼을 한 줄(가로 스크롤)로 묶어 헤더 높이·작업 영역 침범을 줄임
- */
-@media (max-width: 1199px) {
+@media (max-width: 960px) {
   .activity-nav {
-    flex-wrap: nowrap;
-    overflow-x: auto;
-    overflow-y: hidden;
-    -webkit-overflow-scrolling: touch;
-    scroll-snap-type: x proximity;
-    scrollbar-width: thin;
-    padding-bottom: 8px;
-    margin-left: -4px;
-    margin-right: -4px;
-    padding-left: 4px;
-    padding-right: 4px;
-    touch-action: pan-x;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
+}
 
-  .activity-nav::-webkit-scrollbar {
-    height: 6px;
-  }
-
-  .activity-nav::-webkit-scrollbar-thumb {
-    background: #cbd5e1;
-    border-radius: 4px;
+@media (max-width: 520px) {
+  .activity-nav {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .activity-nav-btn {
-    flex: 0 0 auto;
-    white-space: nowrap;
-    scroll-snap-align: start;
-    max-width: none;
+    font-size: 0.78rem;
+    min-height: 48px;
   }
 }
 
@@ -362,7 +351,11 @@ body {
 @media (max-width: 600px) {
   .dashboard-header {
     padding: 16px 20px;
+  }
+
+  .dashboard-header-top {
     flex-direction: column;
+    align-items: stretch;
   }
 
   .dashboard-header h1 {

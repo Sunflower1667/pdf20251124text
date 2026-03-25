@@ -7,32 +7,34 @@ const app = document.querySelector('#app')
 app.innerHTML = `
   <div class="student-dashboard">
     <header class="dashboard-header">
-      <div class="header-brand">
-        <h1>학생 활동 대시보드</h1>
-        <p class="subtitle">단계를 선택하면 아래 넓은 영역에서 활동합니다</p>
-        <button id="back-btn" class="back-btn">← 메인으로 돌아가기</button>
-        <nav class="activity-nav" aria-label="활동 단계 선택">
-          <button type="button" class="activity-nav-btn" data-activity-src="student2.html">명세서 탐색하기</button>
-          <button type="button" class="activity-nav-btn" data-activity-src="idea.html">발명 아이디어 창출하기</button>
-          <button type="button" class="activity-nav-btn" data-activity-src="idea.html#concretize">발명품 선정 및 구체화</button>
-          <button type="button" class="activity-nav-btn" data-activity-src="drawing.html">발명품 표현하기</button>
-          <button type="button" class="activity-nav-btn" data-activity-src="invention-spec.html">나만의 발명품 명세서 완성하기</button>
-        </nav>
-      </div>
-      <div class="header-actions">
-        <button id="finish-activity-btn" class="action-btn-primary">활동 종료하기</button>
-        <button id="resume-activities-btn" class="action-btn-primary">과거 활동 불러오기</button>
-        <div style="display: flex; align-items: center; gap: 12px;">
-          <button id="view-past-btn" class="action-btn-secondary">과거 활동 보기</button>
-          <div class="user-info" id="user-info" style="display: none;">
-            <div class="user-profile">
-              <img id="user-photo" src="" alt="프로필" class="user-avatar" onerror="this.style.display='none'">
-              <span id="user-name" class="user-name"></span>
+      <div class="dashboard-header-top">
+        <div class="header-brand">
+          <h1>학생 활동 대시보드</h1>
+          <p class="subtitle">단계를 선택하면 아래 넓은 영역에서 활동합니다</p>
+          <button id="back-btn" class="back-btn">← 메인으로 돌아가기</button>
+        </div>
+        <div class="header-actions">
+          <button id="finish-activity-btn" class="action-btn-primary">활동 종료하기</button>
+          <button id="resume-activities-btn" class="action-btn-primary">과거 활동 불러오기</button>
+          <div style="display: flex; align-items: center; gap: 12px;">
+            <button id="view-past-btn" class="action-btn-secondary">과거 활동 보기</button>
+            <div class="user-info" id="user-info" style="display: none;">
+              <div class="user-profile">
+                <img id="user-photo" src="" alt="프로필" class="user-avatar" onerror="this.style.display='none'">
+                <span id="user-name" class="user-name"></span>
+              </div>
+              <button id="logout-btn" class="logout-btn">로그아웃</button>
             </div>
-            <button id="logout-btn" class="logout-btn">로그아웃</button>
           </div>
         </div>
       </div>
+      <nav class="activity-nav" aria-label="활동 단계 선택">
+        <button type="button" class="activity-nav-btn" data-activity-src="student2.html">명세서 탐색하기</button>
+        <button type="button" class="activity-nav-btn" data-activity-src="idea.html">아이디어 창출하기</button>
+        <button type="button" class="activity-nav-btn" data-activity-src="idea.html#concretize">발명품 선정 및 구체화</button>
+        <button type="button" class="activity-nav-btn" data-activity-src="drawing.html">발명품 표현하기</button>
+        <button type="button" class="activity-nav-btn" data-activity-src="invention-spec.html">나만의 발명품 명세서 완성하기</button>
+      </nav>
     </header>
 
     <div class="activity-workspace" id="activity-workspace">

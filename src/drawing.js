@@ -94,11 +94,67 @@ function allowTouchDrawing() {
   return Boolean(allowTouchDrawingInput?.checked)
 }
 
-/** 펜·마우스는 항상 허용. 손/손가락은 옵션 켰을 때만 (애플펜슬은 pointerType === 'pen'). */
+/**
+ * 그리기에 사용할 포인터인지 판별.
+ * - 애플펜슬은 보통 pointerType === 'pen'
+ * - iPad Safari/WebKit 일부 버전에서는 펜이 touch로 올라오는 경우가 있어 width/height(접촉 면적)로 보조 판별
+ * - 손가락만 쓸 땐 체크박스로 터치 허용
+ */
 function isStrokePointer(e) {
   if (e.pointerType === 'mouse' || e.pointerType === 'pen') return true
-  if (e.pointerType === 'touch' && allowTouchDrawing()) return true
+  if (e.pointerType === 'touch') {
+    if (allowTouchDrawing()) return true
+    const w = typeof e.width === 'number' ? e.width : 0
+    const h = typeof e.height === 'number' ? e.height : 0
+    if (w === 0 && h === 0) return true
+    const maxSide = Math.max(w, h)
+    if (maxSide > 0 && maxSide < 42) return true
+  }
   return false
+}
+
+let documentStrokeListenersBound = false
+
+function bindDocumentStrokeListeners() {
+  if (documentStrokeListenersBound) return
+  documentStrokeListenersBound = true
+  document.addEventListener('pointermove', onDocumentPointerMove, { capture: true, passive: false })
+  document.addEventListener('pointerup', onDocumentPointerUp, { capture: true, passive: false })
+  document.addEventListener('pointercancel', onDocumentPointerUp, { capture: true, passive: false })
+}
+
+function unbindDocumentStrokeListeners() {
+  if (!documentStrokeListenersBound) return
+  documentStrokeListenersBound = false
+  document.removeEventListener('pointermove', onDocumentPointerMove, { capture: true })
+  document.removeEventListener('pointerup', onDocumentPointerUp, { capture: true })
+  document.removeEventListener('pointercancel', onDocumentPointerUp, { capture: true })
+}
+
+function onDocumentPointerMove(e) {
+  if (!isDrawing || e.pointerId !== activePointerId) return
+  e.preventDefault()
+  paintFromPointerEvent(e)
+}
+
+function onDocumentPointerUp(e) {
+  if (e.pointerId !== activePointerId) return
+  e.preventDefault()
+  finishStroke(e)
+}
+
+function finishStroke(e) {
+  unbindDocumentStrokeListeners()
+  if (e) {
+    try {
+      canvas.releasePointerCapture(e.pointerId)
+    } catch (_) {}
+  }
+  activePointerId = null
+  isDrawing = false
+  if (currentTool === 'eraser' && cursorPreview) {
+    cursorPreview.style.display = 'none'
+  }
 }
 
 // 캔버스 크기 설정
@@ -290,35 +346,25 @@ function onPointerDown(e) {
   } catch (_) {
     /* 일부 브라우저 */
   }
+  beginStrokeTracking(e)
+}
+
+function beginStrokeTracking(e) {
   activePointerId = e.pointerId
   isDrawing = true
   const pos = getPointerPos(e)
   lastX = pos.x
   lastY = pos.y
+  bindDocumentStrokeListeners()
 }
 
 function onPointerMove(e) {
-  if (!isDrawing || e.pointerId !== activePointerId) {
-    if (!isDrawing && isStrokePointer(e)) {
-      const pos = getPointerPos(e)
-      updateCursorPosition(pos.x, pos.y)
-    }
+  if (isDrawing && e.pointerId === activePointerId) {
     return
   }
-  e.preventDefault()
-  paintFromPointerEvent(e)
-}
-
-function endStroke(e) {
-  if (activePointerId == null) return
-  if (e && e.pointerId !== activePointerId) return
-  try {
-    if (e) canvas.releasePointerCapture(e.pointerId)
-  } catch (_) {}
-  activePointerId = null
-  isDrawing = false
-  if (currentTool === 'eraser' && cursorPreview) {
-    cursorPreview.style.display = 'none'
+  if (!isDrawing && isStrokePointer(e)) {
+    const pos = getPointerPos(e)
+    updateCursorPosition(pos.x, pos.y)
   }
 }
 
@@ -332,19 +378,13 @@ function updateCursorPosition(x, y) {
   }
 }
 
-canvas.addEventListener('pointerdown', onPointerDown)
-canvas.addEventListener('pointermove', onPointerMove)
-canvas.addEventListener('pointerup', endStroke)
-canvas.addEventListener('pointercancel', endStroke)
-canvas.addEventListener('lostpointercapture', () => {
-  activePointerId = null
-  isDrawing = false
-  if (currentTool === 'eraser' && cursorPreview) cursorPreview.style.display = 'none'
+canvas.addEventListener('pointerdown', onPointerDown, { passive: false })
+canvas.addEventListener('pointermove', onPointerMove, { passive: false })
+canvas.addEventListener('lostpointercapture', (e) => {
+  if (e.pointerId !== activePointerId) return
+  finishStroke(null)
 })
 canvas.addEventListener('pointerleave', (e) => {
-  if (!canvas.hasPointerCapture(e.pointerId)) {
-    endStroke(e)
-  }
   if (!isDrawing && currentTool === 'eraser' && cursorPreview) {
     cursorPreview.style.display = 'none'
   }
