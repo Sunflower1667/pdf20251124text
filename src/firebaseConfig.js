@@ -10,6 +10,28 @@ const envVars = {
   messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
   appId: import.meta.env.VITE_FIREBASE_APP_ID,
 }
+import { initializeApp, getApps, getApp } from 'firebase/app';
+import { getAuth, GoogleAuthProvider } from 'firebase/auth';
+import { getFirestore } from 'firebase/firestore'; // Firestore 추가
+import { getStorage } from 'firebase/storage';    // Storage(PDF 저장용) 추가
+
+// ... (환경 변수 선언 부분은 그대로 유지) ...
+
+let app, auth, db, storage, googleProvider;
+
+try {
+  // 이미 초기화된 앱이 있으면 재사용, 없으면 초기화
+  app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
+  auth = getAuth(app);
+  db = getFirestore(app);     // 🔥 데이터 저장용
+  storage = getStorage(app); // 🔥 PDF/파일 저장용
+  googleProvider = new GoogleAuthProvider();
+} catch (error) {
+  console.error("Firebase 초기화 중 에러:", error);
+}
+
+// 명시적으로 모두 export
+export { app, auth, db, storage, googleProvider };
 
 // 디버깅: 모든 환경 변수 확인 (항상 표시)
 console.log('=== Firebase 환경 변수 로드 확인 ===')
