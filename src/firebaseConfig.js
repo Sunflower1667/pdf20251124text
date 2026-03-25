@@ -152,3 +152,9 @@ function initFirebase() {
 // Firebase 인스턴스 export (동적 로드된 값)
 export { app, auth, googleProvider, initFirebase }
 
+// 현재 Vite가 읽어들인 모든 'VITE_' 변수 출력
+console.log("현재 로드된 환경 변수 목록:", import.meta.env);
+
+if (!import.meta.env.VITE_FIREBASE_STORAGE_BUCKET) {
+  console.error("🚨 버킷 주소를 읽지 못했습니다. .env 파일 위치나 오타를 확인하세요!");
+}

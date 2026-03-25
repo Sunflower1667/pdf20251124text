@@ -44,8 +44,9 @@ body {
   gap: 24px;
 }
 
-.dashboard-header > div:first-child {
+.dashboard-header .header-brand {
   flex: 1;
+  min-width: 0;
 }
 
 .dashboard-header h1 {
@@ -216,124 +217,101 @@ body {
   box-shadow: 0 4px 12px rgba(15, 23, 42, 0.15);
 }
 
-.pages-container {
+.activity-nav {
   display: flex;
-  flex-direction: row;
-  gap: 28px;
-  padding: 32px;
-  overflow-x: auto;
-  overflow-y: hidden;
-  min-height: calc(100vh - 200px);
-  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid #e2e8f0;
 }
 
-.page-section {
-  flex: 0 0 calc(33.333% - 18px);
-  min-width: 400px;
-  background: #ffffff;
-  border-radius: 16px;
-  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.1);
+.activity-nav-btn {
+  padding: 10px 16px;
+  border: 2px solid #e2e8f0;
+  border-radius: 12px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  font-family: inherit;
+  background: #f8fafc;
+  color: #334155;
+  cursor: pointer;
+  transition: all 180ms ease;
+  text-align: center;
+  line-height: 1.35;
+}
+
+.activity-nav-btn:hover {
+  border-color: #93c5fd;
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
+.activity-nav-btn.is-active {
+  border-color: #2563eb;
+  background: #2563eb;
+  color: #ffffff;
+  box-shadow: 0 4px 14px rgba(37, 99, 235, 0.35);
+}
+
+.activity-workspace {
+  flex: 1;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
-  height: calc(100vh - 200px);
-  transition: all 200ms ease;
+  min-height: 0;
+  padding: 24px 32px 32px;
 }
 
-.page-section:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 12px 24px rgba(37, 99, 235, 0.15);
-}
-
-.page-header {
-  padding: 20px 24px;
-  background: #f8fafc;
-  border-bottom: 1px solid #e2e8f0;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  flex-shrink: 0;
-}
-
-.page-header h2 {
-  margin: 0;
-  font-size: 1.25rem;
-  color: #0f172a;
-  font-weight: 600;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.fullscreen-btn {
-  padding: 10px 14px;
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
-  background: #ffffff;
-  color: #64748b;
-  cursor: pointer;
-  transition: all 150ms ease;
+.activity-placeholder {
+  flex: 1;
+  min-height: calc(100vh - 280px);
   display: flex;
   align-items: center;
   justify-content: center;
+  margin: 0 auto;
+  width: 100%;
+  max-width: 720px;
+  background: #ffffff;
+  border-radius: 16px;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08);
+  color: #64748b;
+  font-size: 1.25rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
 }
 
-.fullscreen-btn:hover {
-  background: #f8fafc;
-  border-color: #cbd5e1;
-  color: #0f172a;
+/* display:flex가 hidden 기본값을 덮어써서, 활동 선택 후에도 안내문이 남는 문제 방지 */
+.activity-placeholder[hidden] {
+  display: none !important;
 }
 
-.page-frame {
+.activity-frame {
   flex: 1;
   width: 100%;
+  min-height: calc(100vh - 280px);
   border: none;
-  overflow: auto;
+  border-radius: 16px;
   background: #ffffff;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.1);
 }
 
-/* 스크롤바 스타일링 */
-.pages-container::-webkit-scrollbar {
-  height: 12px;
+.activity-frame[hidden] {
+  display: none !important;
 }
 
-.pages-container::-webkit-scrollbar-track {
-  background: #f1f5f9;
-  border-radius: 6px;
-}
-
-.pages-container::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
-  border-radius: 6px;
-}
-
-.pages-container::-webkit-scrollbar-thumb:hover {
-  background: #94a3b8;
+.activity-frame:not([hidden]) {
+  display: block;
 }
 
 /* 반응형 디자인 */
-@media (max-width: 1400px) {
-  .page-section {
-    flex: 0 0 calc(50% - 12px);
-    min-width: 500px;
-  }
-}
-
 @media (max-width: 1000px) {
-  .page-section {
-    flex: 0 0 100%;
-    min-width: 100%;
+  .activity-workspace {
+    padding: 16px 20px 24px;
   }
 
-  .pages-container {
-    flex-direction: column;
-    overflow-y: auto;
-    overflow-x: hidden;
-    align-items: stretch;
-  }
-
-  .page-section {
-    height: 600px;
+  .activity-placeholder,
+  .activity-frame {
+    min-height: min(70vh, 560px);
   }
 }
 
@@ -347,18 +325,13 @@ body {
     font-size: 1.5rem;
   }
 
-  .pages-container {
-    padding: 16px;
-    gap: 16px;
+  .activity-workspace {
+    padding: 12px 16px 20px;
   }
 
-  .page-section {
-    height: 500px;
-    min-width: 100%;
-  }
-
-  .page-header h2 {
-    font-size: 1rem;
+  .activity-nav-btn {
+    flex: 1 1 100%;
+    width: 100%;
   }
 
   .header-actions {

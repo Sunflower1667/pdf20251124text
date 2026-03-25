@@ -7,14 +7,21 @@ const app = document.querySelector('#app')
 app.innerHTML = `
   <div class="student-dashboard">
     <header class="dashboard-header">
-      <div>
+      <div class="header-brand">
         <h1>학생 활동 대시보드</h1>
-        <p class="subtitle">세 가지 활동을 한눈에 확인하세요</p>
+        <p class="subtitle">단계를 선택하면 아래 넓은 영역에서 활동합니다</p>
         <button id="back-btn" class="back-btn">← 메인으로 돌아가기</button>
+        <nav class="activity-nav" aria-label="활동 단계 선택">
+          <button type="button" class="activity-nav-btn" data-activity-src="student2.html">명세서 탐색하기</button>
+          <button type="button" class="activity-nav-btn" data-activity-src="idea.html">발명 아이디어 창출하기</button>
+          <button type="button" class="activity-nav-btn" data-activity-src="idea.html#concretize">발명품 선정 및 구체화</button>
+          <button type="button" class="activity-nav-btn" data-activity-src="drawing.html">발명품 표현하기</button>
+          <button type="button" class="activity-nav-btn" data-activity-src="invention-spec.html">나만의 발명품 명세서 완성하기</button>
+        </nav>
       </div>
       <div class="header-actions">
         <button id="finish-activity-btn" class="action-btn-primary">활동 종료하기</button>
-        <button id="save-all-btn" class="action-btn-primary">전체 활동 PDF 저장</button>
+        <button id="resume-activities-btn" class="action-btn-primary">과거 활동 불러오기</button>
         <div style="display: flex; align-items: center; gap: 12px;">
           <button id="view-past-btn" class="action-btn-secondary">과거 활동 보기</button>
           <div class="user-info" id="user-info" style="display: none;">
@@ -28,69 +35,28 @@ app.innerHTML = `
       </div>
     </header>
 
-    <div class="pages-container">
-      <div class="page-section">
-        <div class="page-header">
-          <h2>📖 1. 명세서 쉽게 이해하기</h2>
-          <button class="fullscreen-btn" data-page="student1" title="전체 화면">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/>
-            </svg>
-          </button>
-        </div>
-        <iframe 
-          id="student1-frame"
-          src="student1.html" 
-          class="page-frame"
-          frameborder="0"
-          loading="lazy"
-        ></iframe>
+    <div class="activity-workspace" id="activity-workspace">
+      <div id="activity-placeholder" class="activity-placeholder" aria-live="polite">
+        활동할 내용을 클릭하세요
       </div>
-
-      <div class="page-section">
-        <div class="page-header">
-          <h2>💡 2. 발명 아이디어 창출</h2>
-          <button class="fullscreen-btn" data-page="idea" title="전체 화면">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/>
-            </svg>
-          </button>
-        </div>
-        <iframe 
-          id="idea-frame"
-          src="idea.html" 
-          class="page-frame"
-          frameborder="0"
-          loading="lazy"
-        ></iframe>
-      </div>
-
-      <div class="page-section">
-        <div class="page-header">
-          <h2>🎨 3. 발명품 표현하기</h2>
-          <button class="fullscreen-btn" data-page="drawing" title="전체 화면">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/>
-            </svg>
-          </button>
-        </div>
-        <iframe 
-          id="drawing-frame"
-          src="drawing.html" 
-          class="page-frame"
-          frameborder="0"
-          loading="lazy"
-        ></iframe>
-      </div>
+      <iframe
+        id="activity-frame"
+        class="activity-frame"
+        title="선택한 활동"
+        frameborder="0"
+        hidden
+      ></iframe>
     </div>
   </div>
 `
 
 const backBtn = document.querySelector('#back-btn')
 const finishActivityBtn = document.querySelector('#finish-activity-btn')
-const saveAllBtn = document.querySelector('#save-all-btn')
+const resumeActivitiesBtn = document.querySelector('#resume-activities-btn')
 const viewPastBtn = document.querySelector('#view-past-btn')
-const fullscreenBtns = document.querySelectorAll('.fullscreen-btn')
+const activityNavBtns = document.querySelectorAll('.activity-nav-btn')
+const activityPlaceholder = document.querySelector('#activity-placeholder')
+const activityFrame = document.querySelector('#activity-frame')
 const userInfo = document.querySelector('#user-info')
 const userName = document.querySelector('#user-name')
 const userPhoto = document.querySelector('#user-photo')
@@ -205,24 +171,26 @@ function showReflectionModal() {
   closeBtn.addEventListener('click', closeModal)
   overlay.addEventListener('click', closeModal)
   
-  // iframe에서 메시지 받기 (활동 종료하기 버튼 클릭 시)
+  // iframe에서 메시지 받기 (활동 종료하기: 소감·피드백 Firebase 저장 후 전송)
   const messageHandler = async (event) => {
-    if (event.data === 'finish-activity') {
-      // 전체 활동 PDF 저장 (reflection 포함)
-      try {
-        const { generateFinalPdf } = await import('./studentActivity.js')
-        await generateFinalPdf()
-        
-        // 모달 닫기
-        closeModal()
-        window.removeEventListener('message', messageHandler)
-        
-        // 완료 메시지와 메인으로 돌아가기 버튼 표시
-        showCompletionMessage()
-      } catch (error) {
-        console.error('최종 PDF 저장 오류:', error)
-        alert('PDF 저장 중 오류가 발생했습니다.')
-      }
+    const isFinish =
+      event.data === 'finish-activity' ||
+      (event.data && typeof event.data === 'object' && event.data.type === 'finish-activity')
+    if (!isFinish) return
+
+    try {
+      const sa = await import('./studentActivity.js')
+      await sa.persistLocalWorkbenchToFirebase()
+      await new Promise((r) => setTimeout(r, 400))
+      await sa.generateFinalPdf()
+
+      closeModal()
+      window.removeEventListener('message', messageHandler)
+
+      showCompletionMessage()
+    } catch (error) {
+      console.error('활동 종료 처리 오류:', error)
+      alert('활동을 마무리하는 중 오류가 발생했습니다. 네트워크를 확인 후 다시 시도해 주세요.')
     }
   }
   
@@ -237,7 +205,7 @@ function showCompletionMessage() {
       <div class="modal-content completion-modal-content">
         <div class="completion-icon" style="font-size: 4rem; margin-bottom: 20px;">✅</div>
         <h2 style="margin: 0 0 15px 0; font-size: 1.5rem;">활동이 완료되었습니다!</h2>
-        <p style="margin: 0 0 30px 0; color: #64748b;">모든 활동 내용이 PDF로 저장되었습니다.</p>
+        <p style="margin: 0 0 30px 0; color: #64748b;">활동 내용이 Firebase에 저장되었고, 최종 보고서 PDF 파일도 저장되었습니다.</p>
         <button id="go-to-main-btn" class="action-btn-primary" style="padding: 12px 24px; font-size: 1rem; border: none; border-radius: 8px; cursor: pointer; background: #2563eb; color: white; font-weight: 600;">
           메인 페이지로 돌아가기
         </button>
@@ -260,22 +228,35 @@ function showCompletionMessage() {
   })
 }
 
-// 전체 활동 PDF 저장
-if (saveAllBtn) {
-  saveAllBtn.addEventListener('click', async () => {
-    saveAllBtn.disabled = true
-    saveAllBtn.textContent = 'PDF 생성 중...'
-    
+// 과거 활동 불러오기 → localStorage 복원 후 각 단계에서 이어하기
+if (resumeActivitiesBtn) {
+  resumeActivitiesBtn.addEventListener('click', async () => {
+    resumeActivitiesBtn.disabled = true
+    const prevLabel = resumeActivitiesBtn.textContent
+    resumeActivitiesBtn.textContent = '불러오는 중...'
+
     try {
-      const { generateCombinedPdf } = await import('./studentActivity.js')
-      await generateCombinedPdf()
-      saveAllBtn.textContent = '전체 활동 PDF 저장'
+      const { restoreRecentActivitiesForContinue } = await import('./studentActivity.js')
+      const { hadAny, message } = await restoreRecentActivitiesForContinue()
+
+      if (!hadAny) {
+        alert(
+          '불러올 저장된 활동이 없습니다.\n명세서 분석·아이디어·그림 등을 진행하면 자동으로 저장되며, 이후 여기서 다시 불러올 수 있어요.'
+        )
+      } else {
+        alert(
+          `지난에 저장된 활동을 이 기기에 불러왔습니다.\n\n복원: ${message}\n\n각 단계 버튼을 눌러 화면을 열면 이어서 진행할 수 있습니다. 이미 열린 활동 창은 자동으로 새로고침됩니다.`
+        )
+        if (activityFrame && !activityFrame.hidden && activityFrame.src) {
+          activityFrame.src = activityFrame.src
+        }
+      }
     } catch (error) {
-      console.error('PDF 저장 오류:', error)
-      alert('PDF 저장 중 오류가 발생했습니다.')
-      saveAllBtn.textContent = '전체 활동 PDF 저장'
+      console.error('과거 활동 복원 오류:', error)
+      alert('과거 활동을 불러오는 중 오류가 발생했습니다.')
     } finally {
-      saveAllBtn.disabled = false
+      resumeActivitiesBtn.disabled = false
+      resumeActivitiesBtn.textContent = prevLabel
     }
   })
 }
@@ -520,27 +501,21 @@ function sanitize(value) {
   return div.innerHTML
 }
 
-// 전체 화면 버튼 클릭 이벤트
-fullscreenBtns.forEach(btn => {
+// 단계 버튼 → 넓은 활동 영역에 iframe 로드
+activityNavBtns.forEach((btn) => {
   btn.addEventListener('click', () => {
-    const page = btn.getAttribute('data-page')
-    let url = ''
-    
-    switch(page) {
-      case 'student1':
-        url = 'student1.html'
-        break
-      case 'idea':
-        url = 'idea.html'
-        break
-      case 'drawing':
-        url = 'drawing.html'
-        break
-    }
-    
-    if (url) {
-      window.open(url, '_blank')
-    }
+    const src = btn.getAttribute('data-activity-src')
+    if (!src || !activityFrame || !activityPlaceholder) return
+
+    activityNavBtns.forEach((b) => b.classList.remove('is-active'))
+    btn.classList.add('is-active')
+
+    activityPlaceholder.hidden = true
+    activityFrame.hidden = false
+
+    const base = src.split('#')[0]
+    const hash = src.includes('#') ? '#' + src.split('#').slice(1).join('#') : ''
+    activityFrame.src = `${base}${hash}`
   })
 })
 

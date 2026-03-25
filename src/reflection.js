@@ -39,7 +39,7 @@ app.innerHTML = `
       <h2>교사 피드백</h2>
       <div id="feedback-content" class="feedback-content"></div>
       <div class="feedback-actions">
-        <button id="save-with-feedback-btn" type="button">소감과 피드백 함께 저장하기</button>
+        <button id="save-with-feedback-btn" type="button">PDF로 오늘 활동결과 저장하기</button>
         <button id="finish-activity-btn" type="button" style="display: none;">활동 종료하기</button>
       </div>
     </section>
@@ -147,18 +147,17 @@ if (finishActivityBtn) {
     finishActivityBtn.textContent = '활동 종료 중...'
 
     try {
-      // Firebase에 최종 저장 (피드백 포함)
       const { saveStudentActivity } = await import('./activityStorage.js')
       await saveStudentActivity('reflection', { reflection: text, feedback: feedbackText })
-      
-      // 부모 창에 메시지 전송 (모달에서 열렸는지 확인)
+
       if (window.parent !== window) {
-        window.parent.postMessage('finish-activity', '*')
+        window.parent.postMessage({ type: 'finish-activity' }, '*')
       } else {
-        // 직접 열렸을 경우
-        const { generateFinalPdf } = await import('./studentActivity.js')
-        await generateFinalPdf()
-        alert('활동이 완료되었습니다! 모든 내용이 PDF로 저장되었습니다.')
+        const sa = await import('./studentActivity.js')
+        await sa.persistLocalWorkbenchToFirebase()
+        await new Promise((r) => setTimeout(r, 400))
+        await sa.generateFinalPdf()
+        alert('활동이 완료되었습니다! Firebase에 저장되었고, 활동 보고서 PDF도 저장되었습니다.')
         window.location.href = 'index.html'
       }
     } catch (error) {
@@ -170,7 +169,7 @@ if (finishActivityBtn) {
   })
 }
 
-// 소감과 피드백 함께 저장
+// PDF로 오늘 활동결과 저장 (Firebase 먼저, 이어서 PDF 파일)
 saveWithFeedbackBtn.addEventListener('click', async () => {
   const text = reflectionText.value.trim()
   if (!text) {
@@ -184,16 +183,14 @@ saveWithFeedbackBtn.addEventListener('click', async () => {
   }
 
   saveWithFeedbackBtn.disabled = true
-  saveWithFeedbackBtn.textContent = 'PDF 생성 중...'
+  saveWithFeedbackBtn.textContent = '저장 중...'
 
   try {
-    await generateReflectionPdf(text, feedbackText)
-    
-    // Firebase에 활동 저장 (피드백 포함)
     const { saveStudentActivity } = await import('./activityStorage.js')
     await saveStudentActivity('reflection', { reflection: text, feedback: feedbackText })
+    await generateReflectionPdf(text, feedbackText)
     
-    statusMessage.textContent = '소감과 피드백이 함께 저장되었습니다.'
+    statusMessage.textContent = 'PDF 파일로 저장되었습니다. (소감·피드백은 Firebase에도 저장되었습니다.)'
     statusMessage.dataset.mode = 'success'
   } catch (error) {
     console.error('PDF 저장 오류:', error)
@@ -202,7 +199,7 @@ saveWithFeedbackBtn.addEventListener('click', async () => {
     statusMessage.dataset.mode = 'error'
   } finally {
     saveWithFeedbackBtn.disabled = false
-    saveWithFeedbackBtn.textContent = '소감과 피드백 함께 저장하기'
+    saveWithFeedbackBtn.textContent = 'PDF로 오늘 활동결과 저장하기'
   }
 })
 

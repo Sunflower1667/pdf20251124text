@@ -68,6 +68,8 @@ const brushSize = document.querySelector('#brush-size')
 const brushSizeValue = document.querySelector('#brush-size-value')
 const uploadImageBtn = document.querySelector('#upload-image-btn')
 const imageUploadInput = document.querySelector('#image-upload-input')
+const penTool = document.querySelector('#pen-tool')
+const eraserTool = document.querySelector('#eraser-tool')
 const clearBtn = document.querySelector('#clear-btn')
 const saveDrawingBtn = document.querySelector('#save-drawing-btn')
 const downloadDrawingBtn = document.querySelector('#download-drawing-btn')
@@ -81,14 +83,13 @@ let currentBrushSize = 5
 let lastX = 0
 let lastY = 0
 
-// =====================
 // 캔버스 크기 설정
-// =====================
 function resizeCanvas() {
   const container = canvas.parentElement
   canvas.width = container.clientWidth - 40
   canvas.height = Math.max(400, window.innerHeight * 0.5)
-
+  
+  // 배경을 흰색으로 설정
   ctx.fillStyle = '#ffffff'
   ctx.fillRect(0, 0, canvas.width, canvas.height)
 }
@@ -118,9 +119,17 @@ window.addEventListener('resize', () => {
   tryRestoreDrawingFromStorage()
 })
 
-// =====================
+// 초기 커서 상태 설정
+updateCursor()
+
+// 선 두께 업데이트
+brushSize.addEventListener('input', (e) => {
+  currentBrushSize = parseInt(e.target.value)
+  brushSizeValue.textContent = `${currentBrushSize}px`
+  updateCursor()
+})
+
 // 커서 업데이트
-// =====================
 function updateCursor() {
   if (currentTool === 'eraser') {
     const size = currentBrushSize * 2
@@ -134,37 +143,12 @@ function updateCursor() {
   }
 }
 
-// 초기 커서 상태 설정
-updateCursor()
-
-// =====================
-// 커서 위치 업데이트
-// =====================
-function updateCursorPosition(x, y) {
-  if (currentTool === 'eraser' && cursorPreview) {
-    const rect = canvas.getBoundingClientRect()
-    const container = canvas.parentElement
-    cursorPreview.style.left = `${rect.left - container.getBoundingClientRect().left + x - currentBrushSize}px`
-    cursorPreview.style.top = `${rect.top - container.getBoundingClientRect().top + y - currentBrushSize}px`
-  }
-}
-
-// =====================
-// 선 두께 업데이트
-// =====================
-brushSize.addEventListener('input', (e) => {
-  currentBrushSize = parseInt(e.target.value)
-  brushSizeValue.textContent = `${currentBrushSize}px`
-  updateCursor()
-})
-
-// =====================
 // 색상 선택
-// =====================
 colorInput.addEventListener('input', (e) => {
   currentColor = e.target.value
 })
 
+// 색상 프리셋
 colorPresets.forEach(preset => {
   preset.addEventListener('click', () => {
     const color = preset.dataset.color
@@ -173,21 +157,17 @@ colorPresets.forEach(preset => {
   })
 })
 
-// =====================
 // 도구 선택
-// =====================
 toolButtons.forEach(btn => {
   btn.addEventListener('click', () => {
     toolButtons.forEach(b => b.classList.remove('active'))
     btn.classList.add('active')
     currentTool = btn.dataset.tool
-    updateCursor() // 커서 상태는 updateCursor()가 전담
+    updateCursor()
   })
 })
 
-// =====================
 // 그림 업로드
-// =====================
 if (uploadImageBtn && imageUploadInput) {
   uploadImageBtn.addEventListener('click', () => {
     imageUploadInput.click()
@@ -206,25 +186,29 @@ if (uploadImageBtn && imageUploadInput) {
     reader.onload = (event) => {
       const img = new Image()
       img.onload = () => {
+        // 캔버스에 이미지 그리기 (캔버스 크기에 맞게 조정)
         const scale = Math.min(
           canvas.width / img.width,
           canvas.height / img.height,
-          1
+          1 // 원본보다 크게 하지 않음
         )
+        
         const x = (canvas.width - img.width * scale) / 2
         const y = (canvas.height - img.height * scale) / 2
+
+        // 기존 내용 위에 이미지 그리기
         ctx.drawImage(img, x, y, img.width * scale, img.height * scale)
       }
       img.src = event.target.result
     }
     reader.readAsDataURL(file)
+    
+    // 같은 파일을 다시 선택할 수 있도록 input 초기화
     e.target.value = ''
   })
 }
 
-// =====================
 // 전체 지우기
-// =====================
 if (clearBtn) {
   clearBtn.addEventListener('click', () => {
     if (confirm('정말로 그림을 모두 지우시겠습니까?')) {
@@ -234,10 +218,8 @@ if (clearBtn) {
   })
 }
 
-// =====================
-// PointerEvent 통합 처리 (마우스 + 펜 + 태블릿)
-// =====================
-function getPointerPos(e) {
+// 마우스 이벤트
+function getMousePos(e) {
   const rect = canvas.getBoundingClientRect()
   return {
     x: e.clientX - rect.left,
@@ -245,73 +227,138 @@ function getPointerPos(e) {
   }
 }
 
-function startPointer(e) {
-  // 손가락 터치는 무시 (스크롤 용도)
-  if (e.pointerType === 'touch') return
-
-  // ✅ e.preventDefault() 제거 → 마우스 이벤트 정상 처리
+function startDrawing(e) {
   isDrawing = true
-  const pos = getPointerPos(e)
+  const pos = getMousePos(e)
   lastX = pos.x
   lastY = pos.y
-  canvas.setPointerCapture(e.pointerId)
 }
 
-function drawPointer(e) {
-  if (e.pointerType === 'touch') return
-
-  const pos = getPointerPos(e)
-  updateCursorPosition(pos.x, pos.y)
-
+function draw(e) {
   if (!isDrawing) return
-  if (currentTool !== 'pen' && currentTool !== 'eraser') return
+
+  const pos = getMousePos(e)
+  updateCursorPosition(pos.x, pos.y)
 
   ctx.beginPath()
   ctx.moveTo(lastX, lastY)
   ctx.lineTo(pos.x, pos.y)
-  ctx.lineCap = 'round'
-  ctx.lineJoin = 'round'
-
+  
   if (currentTool === 'pen') {
     ctx.strokeStyle = currentColor
     ctx.lineWidth = currentBrushSize
+    ctx.lineCap = 'round'
+    ctx.lineJoin = 'round'
   } else if (currentTool === 'eraser') {
     ctx.strokeStyle = '#ffffff'
     ctx.lineWidth = currentBrushSize * 2
+    ctx.lineCap = 'round'
+    ctx.lineJoin = 'round'
   }
-
+  
   ctx.stroke()
+
   lastX = pos.x
   lastY = pos.y
 }
 
-function stopPointer(e) {
-  if (e.pointerType === 'touch') return
-  isDrawing = false
-  // ✅ cursorPreview 숨기는 코드 제거 → updateCursor()가 커서 상태 전담
+// 커서 위치 업데이트
+function updateCursorPosition(x, y) {
+  if (currentTool === 'eraser' && cursorPreview) {
+    const rect = canvas.getBoundingClientRect()
+    const container = canvas.parentElement
+    cursorPreview.style.left = `${rect.left - container.getBoundingClientRect().left + x - (currentBrushSize * 2) / 2}px`
+    cursorPreview.style.top = `${rect.top - container.getBoundingClientRect().top + y - (currentBrushSize * 2) / 2}px`
+  }
 }
 
-canvas.addEventListener('pointerdown', startPointer)
-canvas.addEventListener('pointermove', drawPointer)
-canvas.addEventListener('pointerup', stopPointer)
-canvas.addEventListener('pointercancel', stopPointer)
-
-// ✅ pointerleave는 그리기만 중단, 커서 표시는 updateCursor()에 위임
-canvas.addEventListener('pointerleave', (e) => {
-  if (e.pointerType === 'touch') return
+function stopDrawing() {
   isDrawing = false
+}
+
+// 터치 이벤트 지원
+function getTouchPos(e) {
+  const rect = canvas.getBoundingClientRect()
+  const touch = e.touches[0] || e.changedTouches[0]
+  return {
+    x: touch.clientX - rect.left,
+    y: touch.clientY - rect.top
+  }
+}
+
+function startDrawingTouch(e) {
+  e.preventDefault()
+  isDrawing = true
+  const pos = getTouchPos(e)
+  lastX = pos.x
+  lastY = pos.y
+}
+
+function drawTouch(e) {
+  e.preventDefault()
+  if (!isDrawing) return
+
+  const pos = getTouchPos(e)
+
+  ctx.beginPath()
+  ctx.moveTo(lastX, lastY)
+  ctx.lineTo(pos.x, pos.y)
+  
+  if (currentTool === 'pen') {
+    ctx.strokeStyle = currentColor
+    ctx.lineWidth = currentBrushSize
+    ctx.lineCap = 'round'
+    ctx.lineJoin = 'round'
+  } else if (currentTool === 'eraser') {
+    ctx.strokeStyle = '#ffffff'
+    ctx.lineWidth = currentBrushSize * 2
+    ctx.lineCap = 'round'
+    ctx.lineJoin = 'round'
+  }
+  
+  ctx.stroke()
+
+  lastX = pos.x
+  lastY = pos.y
+}
+
+function stopDrawingTouch() {
+  isDrawing = false
+}
+
+// 마우스 이벤트
+canvas.addEventListener('mousedown', startDrawing)
+canvas.addEventListener('mousemove', (e) => {
+  if (!isDrawing) {
+    const pos = getMousePos(e)
+    updateCursorPosition(pos.x, pos.y)
+  }
+  draw(e)
+})
+canvas.addEventListener('mouseup', stopDrawing)
+canvas.addEventListener('mouseleave', () => {
+  stopDrawing()
+  if (currentTool === 'eraser') {
+    cursorPreview.style.display = 'none'
+  }
 })
 
-// =====================
+// 터치 이벤트
+canvas.addEventListener('touchstart', startDrawingTouch)
+canvas.addEventListener('touchmove', drawTouch)
+canvas.addEventListener('touchend', stopDrawingTouch)
+
 // 그림 저장하기
-// =====================
 saveDrawingBtn.addEventListener('click', async () => {
   try {
     const imageData = canvas.toDataURL('image/png')
-    await saveStudentActivity('drawing', {
+    
+    // Firebase에 활동 저장
+    await saveStudentActivity('drawing', { 
       image: imageData,
       timestamp: new Date().toISOString()
     })
+    
     alert('그림이 저장되었습니다!')
   } catch (error) {
     console.error('그림 저장 오류:', error)
@@ -319,12 +366,11 @@ saveDrawingBtn.addEventListener('click', async () => {
   }
 })
 
-// =====================
 // 그림 다운로드
-// =====================
 downloadDrawingBtn.addEventListener('click', () => {
   const link = document.createElement('a')
   link.download = `발명품-그림-${new Date().toISOString().split('T')[0]}.png`
   link.href = canvas.toDataURL('image/png')
   link.click()
 })
+

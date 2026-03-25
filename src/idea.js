@@ -111,7 +111,22 @@ let chatHistory = []
 let refinedIdeasData = []
 let lastKeywords = []
 
+function applyIdeaPageHash() {
+  const raw = (location.hash || '').replace(/^#/, '').toLowerCase()
+  if (raw !== 'concretize') return
+  requestAnimationFrame(() => {
+    const chat = document.getElementById('chat-section')
+    const gen = document.querySelector('.idea-generation')
+    if (!gen && !chat) return
+    const chatOpen = chat && getComputedStyle(chat).display !== 'none'
+    ;(chatOpen ? chat : gen)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  })
+}
+
 if (generateIdeasBtn) {
+  applyIdeaPageHash()
+  window.addEventListener('hashchange', applyIdeaPageHash)
+
   generateIdeasBtn.addEventListener('click', async () => {
     // 키워드 입력 확인
     const { keywords, error } = parseKeywords(keywordInput?.value || '')
@@ -323,7 +338,7 @@ async function generateIdeas(apiKey, analysis, keywords) {
       ? keywords.join(', ')
       : '입력된 키워드 없음'
 
-  const prompt = `다음 명세서 정보와 학생이 입력한 키워드 3개를 바탕으로 새로운 발명품 아이디어 3개를 제시해주세요.
+  const prompt = `다음 명세서 정보와 학생이 입력한 키워드와 내용을 바탕으로 새로운 발명품 아이디어 3개를 제시해주세요. 해당 아이디어는 구체적으로 제시되어야 하며, 학생이 입력한 키워드와 내용이 잘 섞이도록 아이디어를 만들어 주세요.
 
 명세서 정보:
 - 특허 이름: ${analysis.patentName || '정보 없음'}
@@ -340,12 +355,12 @@ async function generateIdeas(apiKey, analysis, keywords) {
 프로토타입 스케치는 SVG 코드로 작성해주세요. 중학교 학생이 쉽게 이해할 수 있도록 매우 간단하고 명확하게 그려주세요.
 
 프로토타입 그림 요구사항:
-- 중학교 학생 수준으로 이해하기 쉽게
-- 복잡한 디테일 없이 핵심만 표현
-- 간단한 도형(직사각형, 원, 선, 삼각형, 별, 하트, 타원, 육각형, 원기둥)만 사용
-- 색상은 최소한으로 사용 (검은색 선과 1-2가지 색상만)
-- 발명품의 전체적인 모양과 주요 부분만 보여주기
-- 너무 세밀하거나 복잡한 그림은 피하기
+- 시점(Perspective): 위에서 본 모습(평면도)보다는 앞에서 본 모습(정면도)이나 대각선에서 본 모습을 위주로 그려서 발명품의 전체적인 형태를 알 수 있게 해줘.
+- 표현 방식: 
+  - 매우 단순한 도형(직사각형, 원, 선, 삼각형, 타원 등)만 사용.
+  - 핵심 부위가 무엇인지 알 수 있도록 SVG 내부에 아주 짧은 텍스트(예: '버튼', '입구')를 <text> 태그로 추가해도 좋아.
+  - 검은색 선과 포인트 컬러 1~2개만 사용해.
+- 크기: 200x150 사이즈 준수.
 
 다음 JSON 형식으로 응답해주세요:
 
@@ -504,6 +519,67 @@ function selectIdea(index, idea) {
   renderChatMessages()
   chatInput.focus()
   if (refineIdeaBtn) refineIdeaBtn.disabled = true
+}
+
+function tryRestoreStudentIdeaSession() {
+  try {
+    const raw = localStorage.getItem('studentIdeaSessionRestore')
+    if (!raw || !ideasContainer) return
+    const s = JSON.parse(raw)
+    if (!s?.ideas || !Array.isArray(s.ideas) || s.ideas.length === 0) return
+
+    generatedIdeas = s.ideas
+    lastKeywords = Array.isArray(s.keywords) ? s.keywords : []
+    if (keywordInput && lastKeywords.length) {
+      keywordInput.value = lastKeywords.join(', ')
+    }
+    displayIdeas(generatedIdeas)
+    if (regenerateIdeasBtn) {
+      regenerateIdeasBtn.style.display = 'inline-block'
+      regenerateIdeasBtn.disabled = false
+    }
+    if (generateIdeasBtn) {
+      generateIdeasBtn.disabled = false
+      generateIdeasBtn.textContent = '아이디어 3개 생성하기'
+    }
+
+    const sel = s.selectedIdea
+    selectedIdeaIndex = -1
+    if (sel) {
+      const idx = generatedIdeas.findIndex(
+        (i) => i.name === sel.name && i.description === sel.description
+      )
+      selectedIdeaIndex = idx >= 0 ? idx : -1
+    }
+
+    const savedChat = Array.isArray(s.chatHistory) ? s.chatHistory : []
+    if (selectedIdeaIndex >= 0 && savedChat.length > 0 && selectedIdeaEl && chatSection) {
+      const idea = generatedIdeas[selectedIdeaIndex]
+      selectedIdeaEl.innerHTML = `
+        <div class="selected-idea-content">
+          <h3>선택한 아이디어: ${sanitize(idea.name)}</h3>
+          <p>${sanitize(idea.description)}</p>
+        </div>
+      `
+      chatSection.style.display = 'block'
+      chatHistory = savedChat
+      renderChatMessages()
+      const userTurns = chatHistory.filter((m) => m.role === 'user').length
+      if (saveChatBtn) saveChatBtn.disabled = chatHistory.length <= 1
+      if (refineIdeaBtn) refineIdeaBtn.disabled = userTurns < 1
+      if (userTurns >= MAX_CHAT_TURNS) {
+        if (chatInput) chatInput.disabled = true
+        if (sendBtn) sendBtn.disabled = true
+      }
+    }
+
+    if (s.refinedIdea) {
+      refinedIdeasData = Array.isArray(s.refinedIdea) ? s.refinedIdea : [s.refinedIdea]
+      displayRefinedIdeas(refinedIdeasData)
+    }
+  } catch (e) {
+    console.error('아이디어 세션 복원 실패:', e)
+  }
 }
 
 async function sendMessage() {
@@ -1075,3 +1151,6 @@ async function safeJson(response) {
   }
 }
 
+if (generateIdeasBtn) {
+  tryRestoreStudentIdeaSession()
+}

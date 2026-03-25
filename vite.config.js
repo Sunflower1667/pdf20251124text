@@ -18,6 +18,7 @@ export default defineConfig({
                 student: resolve(__dirname, 'student.html'),
                 student1: resolve(__dirname, 'student1.html'),
                 student2: resolve(__dirname, 'student2.html'),
+                inventionSpec: resolve(__dirname, 'invention-spec.html'),
                 idea: resolve(__dirname, 'idea.html'),
                 reflection: resolve(__dirname, 'reflection.html'),
                 teacher: resolve(__dirname, 'teacher.html'),

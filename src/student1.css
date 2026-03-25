@@ -21,22 +21,27 @@ body {
   background: radial-gradient(circle at top, #f8fafc, #e2e8f0);
   display: flex;
   justify-content: center;
-  align-items: center;
-  padding: 32px;
+  align-items: flex-start;
+  padding: 24px 20px 40px;
 }
 
-#app {
-  width: min(960px, 100%);
+/* 학생 대시보드 iframe보다 살짝 좁게, 이전(960px)보다 넓게 */
+#app,
+#ai-app {
+  width: 100%;
+  max-width: min(1180px, calc(100% - 32px));
+  margin: 0 auto;
 }
 
 .shell {
+  width: 100%;
   background: #ffffff;
   border-radius: 20px;
-  padding: 32px clamp(16px, 4vw, 48px);
+  padding: 32px clamp(20px, 3vw, 44px);
   box-shadow: 0 25px 65px rgba(15, 23, 42, 0.15);
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 20px;
 }
 
 header {
@@ -235,44 +240,64 @@ textarea {
   color: #b91c1c;
 }
 
+/* 분석 결과: 이름·출원은 위쪽 2열, 특징·재료는 아래 전체 너비로 읽기 쉽게 */
 .analysis-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 16px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px 20px;
 }
 
 .analysis-card {
   border: 1px solid #e2e8f0;
   border-radius: 16px;
-  padding: 18px;
+  padding: 20px 22px;
   background: #fff;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 12px;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
+  border-left: 4px solid #2563eb;
+}
+
+.analysis-card:nth-child(3),
+.analysis-card:nth-child(4) {
+  grid-column: 1 / -1;
 }
 
 .analysis-card h3 {
   margin: 0;
-  font-size: 0.95rem;
-  letter-spacing: 0.08em;
-  color: #64748b;
-  text-transform: uppercase;
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: #1d4ed8;
+  text-transform: none;
 }
 
 .analysis-card .value {
-  font-size: 1rem;
+  font-size: 1.05rem;
+  line-height: 1.65;
   color: #0f172a;
   white-space: pre-wrap;
 }
 
 .analysis-card ul {
   margin: 0;
-  padding-left: 18px;
+  padding-left: 1.35rem;
   color: #0f172a;
+  font-size: 1.05rem;
+  line-height: 1.65;
+}
+
+.analysis-card li {
+  padding-left: 0.25rem;
 }
 
 .analysis-card li:not(:last-child) {
-  margin-bottom: 4px;
+  margin-bottom: 10px;
+}
+
+.analysis-card li::marker {
+  color: #2563eb;
 }
 
 .analysis-actions {
@@ -287,9 +312,20 @@ textarea {
   min-width: 160px;
 }
 
+@media (max-width: 720px) {
+  .analysis-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .analysis-card:nth-child(3),
+  .analysis-card:nth-child(4) {
+    grid-column: auto;
+  }
+}
+
 @media (max-width: 600px) {
   body {
-    padding: 16px;
+    padding: 16px 12px 28px;
   }
 
   .shell {
@@ -302,5 +338,14 @@ textarea {
 
   .analysis-panel {
     padding: 20px;
+  }
+
+  .analysis-title-section {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .analysis-title-section button {
+    width: 100%;
   }
 }

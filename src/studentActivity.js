@@ -289,6 +289,96 @@ export async function loadPastActivities() {
   }
 }
 
+const IDEA_RESTORE_KEY = 'studentIdeaSessionRestore'
+const DRAWING_RESTORE_KEY = 'studentDrawingRestore'
+
+/**
+ * Firebase에 저장된 최신 활동을 localStorage에 복원해 각 활동 페이지에서 이어하기 가능하게 함.
+ * @returns {Promise<{ hadAny: boolean; message: string }>}
+ */
+export async function restoreRecentActivitiesForContinue() {
+  const recent = await getRecentActivities()
+  const parts = []
+  let hadAny = false
+
+  if (recent.analysis?.data) {
+    localStorage.setItem('analysisData', JSON.stringify(recent.analysis.data))
+    localStorage.setItem('extractedText', '')
+    parts.push('명세서 분석')
+    hadAny = true
+  }
+
+  if (recent.idea?.data) {
+    localStorage.setItem(IDEA_RESTORE_KEY, JSON.stringify(recent.idea.data))
+    parts.push('아이디어·대화·구체화')
+    hadAny = true
+  } else {
+    localStorage.removeItem(IDEA_RESTORE_KEY)
+  }
+
+  if (recent.drawing?.data?.image) {
+    localStorage.setItem(DRAWING_RESTORE_KEY, recent.drawing.data.image)
+    parts.push('발명품 그림')
+    hadAny = true
+  } else {
+    localStorage.removeItem(DRAWING_RESTORE_KEY)
+  }
+
+  return {
+    hadAny,
+    message: parts.length ? parts.join(', ') : '복원할 항목 없음',
+  }
+}
+
+/**
+ * 브라우저에만 있는 최신 작업물을 활동 종료 직전에 Firebase에 한 번 더 맞춰 저장합니다.
+ * (소감·피드백은 reflection 페이지에서 별도 저장됩니다.)
+ */
+export async function persistLocalWorkbenchToFirebase() {
+  if (!localStorage.getItem('userId')) {
+    console.warn('persistLocalWorkbenchToFirebase: 로그인 사용자 없음')
+    return
+  }
+
+  const { saveStudentActivity } = await import('./activityStorage.js')
+
+  try {
+    const rawAnalysis = localStorage.getItem('analysisData')
+    if (rawAnalysis) {
+      const data = JSON.parse(rawAnalysis)
+      if (data && typeof data === 'object' && Object.keys(data).length > 0) {
+        await saveStudentActivity('analysis', data)
+      }
+    }
+  } catch (e) {
+    console.warn('명세서 분석 Firebase 동기화 실패:', e)
+  }
+
+  try {
+    const rawIdea = localStorage.getItem(IDEA_RESTORE_KEY)
+    if (rawIdea) {
+      const data = JSON.parse(rawIdea)
+      if (data?.ideas && Array.isArray(data.ideas) && data.ideas.length > 0) {
+        await saveStudentActivity('idea', data)
+      }
+    }
+  } catch (e) {
+    console.warn('아이디어 Firebase 동기화 실패:', e)
+  }
+
+  try {
+    const img = localStorage.getItem(DRAWING_RESTORE_KEY)
+    if (img && typeof img === 'string' && img.startsWith('data:')) {
+      await saveStudentActivity('drawing', {
+        image: img,
+        timestamp: new Date().toISOString(),
+      })
+    }
+  } catch (e) {
+    console.warn('그림 Firebase 동기화 실패:', e)
+  }
+}
+
 /**
  * 최종 활동 보고서 PDF 생성 (reflection 포함)
  */
