@@ -1,6 +1,7 @@
 // 학생 활동을 Firebase Firestore에 저장하고 조회하는 유틸리티 함수
 import { initFirebase } from './firebaseConfig.js'
 import { getFirestore, collection, addDoc, doc, setDoc, serverTimestamp, getDocs, query, orderBy, limit } from 'firebase/firestore'
+import { getStorage, ref, uploadBytes } from 'firebase/storage'
 
 /**
  * 학생 활동을 Firebase에 저장
@@ -58,6 +59,45 @@ export async function saveStudentActivity(type, data) {
     console.error('학생 활동 저장 오류:', error)
     // 저장 실패해도 앱은 계속 작동하도록 에러만 로그
   }
+}
+
+/**
+ * 최종 활동 보고서 PDF를 Firebase Storage에 저장 (로컬 다운로드와 별개)
+ * @param {Blob} pdfBlob
+ * @param {string} fileName
+ * @returns {Promise<string|null>} 업로드 경로(대략) 또는 Storage 미사용 시 null
+ */
+export async function saveFinalPdfToStorage(pdfBlob, fileName) {
+  const firebaseResult = initFirebase()
+  if (!firebaseResult?.app) {
+    console.warn('[Storage] Firebase 앱이 없어 PDF 업로드를 건너뜁니다.')
+    return null
+  }
+
+  let storage = firebaseResult.storage
+  if (!storage) {
+    try {
+      storage = getStorage(firebaseResult.app)
+    } catch (e) {
+      console.warn('[Storage] 초기화 실패, PDF 업로드 건너뜀:', e?.message || e)
+      return null
+    }
+  }
+
+  const userId = localStorage.getItem('userId')
+  if (!userId) {
+    console.warn('[Storage] userId 없어 PDF 업로드를 건너뜁니다.')
+    return null
+  }
+
+  const base = String(fileName || 'report.pdf').split(/[/\\]/).pop() || 'report.pdf'
+  const safe = base.replace(/[^\w.\-가-힣 ()\[\]]+/g, '_')
+  const path = `students/${userId}/finalPdfs/${Date.now()}_${safe}`
+
+  const storageRef = ref(storage, path)
+  await uploadBytes(storageRef, pdfBlob, { contentType: 'application/pdf' })
+  console.log('[Storage] 최종 PDF 업로드 완료:', path)
+  return path
 }
 
 /**
