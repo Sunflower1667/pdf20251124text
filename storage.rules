@@ -1,0 +1,11 @@
+rules_version = '2';
+// Firebase Console → Storage → Rules 에 붙여 넣어 게시하세요.
+// 학생은 로그인한 본인 UID 폴더(students/<uid>/...)에만 읽기·쓰기 가능합니다.
+service firebase.storage {
+  match /b/{bucket}/o {
+    match /students/{userId}/{allPaths=**} {
+      allow read, write: if request.auth != null
+        && request.auth.uid == userId;
+    }
+  }
+}
