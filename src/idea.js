@@ -106,6 +106,17 @@ const keywordInput = document.querySelector('#keyword-input')
 
 const MAX_CHAT_TURNS = 10
 
+/** 학생 대시보드(iframe 부모)에 아이디어 단계 표시 동기화 */
+function notifyParentIdeaStep(step) {
+  try {
+    if (window.parent && window.parent !== window) {
+      window.parent.postMessage({ type: 'student-idea-step', step }, '*')
+    }
+  } catch {
+    /* ignore */
+  }
+}
+
 let generatedIdeas = []
 let selectedIdeaIndex = -1
 let chatHistory = []
@@ -149,8 +160,16 @@ if (generateIdeasBtn) {
     try {
       generatedIdeas = await generateIdeas(apiKey, analysisData, keywords)
       lastKeywords = keywords
+      selectedIdeaIndex = -1
+      chatHistory = []
+      if (chatSection) chatSection.style.display = 'none'
+      if (refinedIdeasSection) refinedIdeasSection.style.display = 'none'
+      if (saveChatBtn) saveChatBtn.disabled = true
+      if (refineIdeaBtn) refineIdeaBtn.disabled = true
       displayIdeas(generatedIdeas)
-      
+      flushStudentIdeaSessionToStorage()
+      notifyParentIdeaStep('generation')
+
       // Firebase에 활동 저장
       const { saveStudentActivity } = await import('./activityStorage.js')
       await saveStudentActivity('idea', { ideas: generatedIdeas, keywords })
@@ -213,6 +232,7 @@ if (regenerateIdeasBtn) {
     refinedIdeasSection.style.display = 'none'
     if (saveChatBtn) saveChatBtn.disabled = true
     if (refineIdeaBtn) refineIdeaBtn.disabled = true
+    notifyParentIdeaStep('generation')
 
     isGenerating = true
     const originalText = regenerateIdeasBtn.textContent
@@ -222,6 +242,8 @@ if (regenerateIdeasBtn) {
       generatedIdeas = await generateIdeas(apiKey, analysisData, keywords)
       lastKeywords = keywords
       displayIdeas(generatedIdeas)
+      flushStudentIdeaSessionToStorage()
+      notifyParentIdeaStep('generation')
       regenerateIdeasBtn.textContent = '아이디어 다시 생성하기'
     } catch (error) {
       console.error(error)
@@ -520,6 +542,8 @@ function selectIdea(index, idea) {
   renderChatMessages()
   chatInput.focus()
   if (refineIdeaBtn) refineIdeaBtn.disabled = true
+  flushStudentIdeaSessionToStorage()
+  notifyParentIdeaStep('concretize')
 }
 
 function tryRestoreStudentIdeaSession() {
@@ -577,6 +601,12 @@ function tryRestoreStudentIdeaSession() {
     if (s.refinedIdea) {
       refinedIdeasData = Array.isArray(s.refinedIdea) ? s.refinedIdea : [s.refinedIdea]
       displayRefinedIdeas(refinedIdeasData)
+    }
+
+    if (selectedIdeaIndex >= 0) {
+      notifyParentIdeaStep('concretize')
+    } else {
+      notifyParentIdeaStep('generation')
     }
   } catch (e) {
     console.error('아이디어 세션 복원 실패:', e)

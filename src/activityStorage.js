@@ -1,7 +1,11 @@
 // 학생 활동을 Firebase Firestore에 저장하고 조회하는 유틸리티 함수
 import { initFirebase } from './firebaseConfig.js'
+import { getAuth } from 'firebase/auth'
 import { getFirestore, collection, addDoc, doc, setDoc, serverTimestamp, getDocs, query, where, orderBy, limit } from 'firebase/firestore'
-import { getStorage, ref, uploadBytes } from 'firebase/storage'
+import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage'
+
+/** Firestore activities 문서 안에 넣는 명세서 추출 텍스트 상한(문서 1MB 제한·다른 필드 여유) */
+export const ANALYSIS_EXTRACT_SNAPSHOT_MAX_CHARS = 450_000
 
 /**
  * 학생 활동을 Firebase에 저장
@@ -99,6 +103,100 @@ export async function saveFinalPdfToStorage(pdfBlob, fileName) {
   await uploadBytes(storageRef, pdfBlob, { contentType: 'application/pdf' })
   console.log('[Storage] 최종 PDF 업로드 완료:', path)
   return path
+}
+
+/**
+ * 명세서 원본 PDF 업로드 (분석 활동과 함께 보관)
+ * @param {File | Blob} file
+ * @param {string} [fileName]
+ * @returns {Promise<string|null>} Storage 객체 경로(전체 ref path)
+ */
+export async function saveSpecPdfToStorage(file, fileName = 'spec.pdf') {
+  const firebaseResult = initFirebase()
+  if (!firebaseResult?.app) {
+    console.warn('[Storage] Firebase 없음, 명세서 PDF 업로드 건너뜀')
+    return null
+  }
+
+  let storage = firebaseResult.storage
+  if (!storage) {
+    const b = (import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || '').trim().replace(/^gs:\/\//, '')
+    try {
+      storage = b ? getStorage(firebaseResult.app, `gs://${b}`) : getStorage(firebaseResult.app)
+    } catch (e) {
+      console.warn('[Storage] 초기화 실패, 명세서 PDF 건너뜀:', e?.message || e)
+      return null
+    }
+  }
+
+  const userId = localStorage.getItem('userId')
+  if (!userId) {
+    console.warn('[Storage] userId 없음, 명세서 PDF 업로드 건너뜀')
+    return null
+  }
+
+  const base = String(fileName || 'spec.pdf').split(/[/\\]/).pop() || 'spec.pdf'
+  const safe = base.replace(/[^\w.\-가-힣 ()\[\]]+/g, '_') || 'spec.pdf'
+  const path = `students/${userId}/specPdfs/${Date.now()}_${safe}`
+
+  const storageRef = ref(storage, path)
+  const body = file instanceof Blob ? file : new Blob([await file.arrayBuffer()], { type: 'application/pdf' })
+  await uploadBytes(storageRef, body, { contentType: 'application/pdf' })
+  console.log('[Storage] 명세서 PDF 업로드 완료:', path)
+  return path
+}
+
+/**
+ * Storage에 저장된 명세서 PDF 바이너리.
+ * getBytes(XHR) 대신 getDownloadURL + fetch 를 써서 일부 환경에서의 CORS 오류를 피합니다.
+ * @param {string} fullPath - saveSpecPdfToStorage 반환 경로
+ * @returns {Promise<Uint8Array|null>}
+ */
+export async function downloadSpecPdfFromStorage(fullPath) {
+  if (!fullPath || typeof fullPath !== 'string') return null
+
+  const firebaseResult = initFirebase()
+  if (!firebaseResult?.app) {
+    console.warn('[Storage] Firebase 없음, 명세서 다운로드 불가')
+    return null
+  }
+
+  const auth = getAuth(firebaseResult.app)
+  try {
+    await auth.authStateReady()
+  } catch {
+    /* ignore */
+  }
+  if (!auth.currentUser) {
+    console.warn('[Storage] Firebase Auth 사용자 없음 — 명세서 PDF 다운로드에 로그인이 필요합니다.')
+    return null
+  }
+
+  let storage = firebaseResult.storage
+  if (!storage) {
+    const b = (import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || '').trim().replace(/^gs:\/\//, '')
+    try {
+      storage = b ? getStorage(firebaseResult.app, `gs://${b}`) : getStorage(firebaseResult.app)
+    } catch (e) {
+      console.warn('[Storage] 초기화 실패:', e?.message || e)
+      return null
+    }
+  }
+
+  const storageRef = ref(storage, fullPath)
+  try {
+    const url = await getDownloadURL(storageRef)
+    const res = await fetch(url, { method: 'GET', mode: 'cors', credentials: 'omit' })
+    if (!res.ok) {
+      console.warn('[Storage] 명세서 PDF fetch 실패:', res.status, res.statusText)
+      return null
+    }
+    const buf = await res.arrayBuffer()
+    return buf.byteLength ? new Uint8Array(buf) : null
+  } catch (e) {
+    console.warn('[Storage] 명세서 PDF 다운로드 실패:', e?.message || e)
+    return null
+  }
 }
 
 /**

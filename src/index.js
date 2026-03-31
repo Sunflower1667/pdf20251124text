@@ -169,6 +169,9 @@ const handleGoogleLogin = async () => {
     localStorage.setItem('userEmail', user.email)
     localStorage.setItem('userName', user.displayName || user.email)
     localStorage.setItem('userPhoto', user.photoURL || '')
+
+    const { clearStudentWorkbenchLocalDrafts } = await import('./studentWorkbenchStorage.js')
+    clearStudentWorkbenchLocalDrafts()
   } catch (error) {
     console.error('Google login error:', error)
 

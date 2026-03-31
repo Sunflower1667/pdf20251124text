@@ -1,5 +1,6 @@
 import './login.css'
 import { initFirebase } from './firebaseConfig.js'
+import { clearStudentWorkbenchLocalDrafts } from './studentWorkbenchStorage.js'
 import { signInWithPopup } from 'firebase/auth'
 
 // Firebase 관련 변수들
@@ -106,11 +107,13 @@ googleLoginBtn.addEventListener('click', async () => {
     localStorage.setItem('userName', user.displayName || user.email)
     localStorage.setItem('userPhoto', user.photoURL || '')
 
-    // 역할에 따라 페이지 이동
+    clearStudentWorkbenchLocalDrafts()
+
+    // 역할에 따라 페이지 이동 (학생은 단일 대시보드로 통일)
     if (role === 'teacher') {
       window.location.href = 'teacher.html' // 교사 모니터링 페이지 (추후 생성)
     } else {
-      window.location.href = 'student1.html' // 학생 활동 페이지
+      window.location.href = 'student.html'
     }
   } catch (error) {
     console.error('Google login error:', error)

@@ -293,6 +293,44 @@ const IDEA_RESTORE_KEY = 'studentIdeaSessionRestore'
 const DRAWING_RESTORE_KEY = 'studentDrawingRestore'
 
 /**
+ * 명세서 분석 스냅샷(요약 + Storage 경로 등)을 localStorage에 넣고, 저장된 PDF가 있으면 다시 추출한 본문을 extractedText에 넣습니다.
+ * @param {object} analysisPayload - Firestore activities 문서의 data (patentName, specPdfPath, …)
+ * @returns {Promise<{ ok: boolean; hadExtracted: boolean }>}
+ */
+export async function applyAnalysisSnapshotToLocal(analysisPayload) {
+  if (!analysisPayload || typeof analysisPayload !== 'object') {
+    return { ok: false, hadExtracted: false }
+  }
+
+  localStorage.setItem('analysisData', JSON.stringify(analysisPayload))
+
+  let extracted = ''
+  const snap = analysisPayload.extractedTextSnapshot
+  if (typeof snap === 'string' && snap.trim()) {
+    extracted = snap
+  } else {
+    const path = analysisPayload.specPdfPath
+    if (path && typeof path === 'string') {
+      try {
+        const { downloadSpecPdfFromStorage } = await import('./activityStorage.js')
+        const bytes = await downloadSpecPdfFromStorage(path)
+        if (bytes && bytes.byteLength > 0) {
+          const { extractTextFromPdfBuffer } = await import('./pdfSpecExtract.js')
+          extracted = await extractTextFromPdfBuffer(bytes)
+        }
+      } catch (e) {
+        console.warn('명세서 PDF 복원(텍스트 추출) 실패:', e)
+      }
+    }
+  }
+
+  localStorage.setItem('extractedText', extracted)
+  const { markExploreHydrateAllowed } = await import('./exploreSession.js')
+  markExploreHydrateAllowed()
+  return { ok: true, hadExtracted: !!extracted.trim() }
+}
+
+/**
  * Firebase에 저장된 최신 활동을 localStorage에 복원해 각 활동 페이지에서 이어하기 가능하게 함.
  * @returns {Promise<{ hadAny: boolean; message: string }>}
  */
@@ -302,8 +340,7 @@ export async function restoreRecentActivitiesForContinue() {
   let hadAny = false
 
   if (recent.analysis?.data) {
-    localStorage.setItem('analysisData', JSON.stringify(recent.analysis.data))
-    localStorage.setItem('extractedText', '')
+    await applyAnalysisSnapshotToLocal(recent.analysis.data)
     parts.push('명세서 분석')
     hadAny = true
   }

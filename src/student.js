@@ -1,5 +1,6 @@
 import './student.css'
 import { initFirebase } from './firebaseConfig.js'
+import { clearStudentWorkbenchLocalDrafts } from './studentWorkbenchStorage.js'
 import { onAuthStateChanged, signOut } from 'firebase/auth'
 
 const app = document.querySelector('#app')
@@ -64,6 +65,39 @@ const userName = document.querySelector('#user-name')
 const userPhoto = document.querySelector('#user-photo')
 const logoutBtn = document.querySelector('#logout-btn')
 
+const IDEA_SESSION_KEY = 'studentIdeaSessionRestore'
+
+function hasSavedIdeaSelection() {
+  try {
+    const raw = localStorage.getItem(IDEA_SESSION_KEY)
+    if (!raw) return false
+    const st = JSON.parse(raw)
+    const sel = st?.selectedIdea
+    if (sel && typeof sel === 'string' && sel.trim()) return true
+    if (sel && typeof sel === 'object') {
+      const title = sel.title != null ? String(sel.title).trim() : ''
+      const name = sel.name != null ? String(sel.name).trim() : ''
+      if (title || name) return true
+    }
+    return false
+  } catch {
+    return false
+  }
+}
+
+window.addEventListener('message', (e) => {
+  if (e.data?.type !== 'student-idea-step') return
+  const step = e.data.step
+  if (step !== 'concretize' && step !== 'generation') return
+  activityNavBtns.forEach((b) => b.classList.remove('is-active'))
+  const selector =
+    step === 'concretize'
+      ? '[data-activity-src="idea.html#concretize"]'
+      : '[data-activity-src="idea.html"]'
+  const target = document.querySelector(selector)
+  if (target) target.classList.add('is-active')
+})
+
 // Firebase 초기화 및 로그인 상태 확인
 const firebaseResult = initFirebase()
 if (firebaseResult.auth) {
@@ -109,6 +143,7 @@ if (logoutBtn) {
         if (firebaseResult.auth) {
           await signOut(firebaseResult.auth)
         }
+        clearStudentWorkbenchLocalDrafts()
         // localStorage 정리
         localStorage.removeItem('userId')
         localStorage.removeItem('userEmail')
@@ -409,10 +444,15 @@ function showActivityDetail(activity) {
   let detailHtml = ''
   
   if (type === 'analysis') {
-    const { patentName, applicationNumber, features, materials } = data || {}
+    const { patentName, applicationNumber, features, materials, specPdfFileName } = data || {}
+    const pdfNote = data?.specPdfPath
+      ? `<p style="color:#475569;font-size:0.9rem;">저장된 명세서 PDF: ${sanitize(specPdfFileName || '파일')}</p>`
+      : '<p style="color:#92400e;font-size:0.9rem;">이 기록에는 명세서 PDF가 Storage에 없거나 예전에 저장된 분석만 있을 수 있어요.</p>'
     detailHtml = `
       <h3>명세서 분석 결과</h3>
       <p><strong>작성일:</strong> ${date}</p>
+      ${pdfNote}
+      <p style="margin-top:12px"><button type="button" class="action-btn-primary" id="restore-analysis-from-detail">이 분석·명세서를 작업대에 불러오기</button></p>
       <p><strong>특허 이름:</strong> ${sanitize(patentName || '정보 없음')}</p>
       <p><strong>출원 번호:</strong> ${sanitize(applicationNumber || '정보 없음')}</p>
       <p><strong>발명품의 특징:</strong></p>
@@ -499,7 +539,35 @@ function showActivityDetail(activity) {
   
   detailCloseBtn.addEventListener('click', closeDetailModal)
   detailOverlay.addEventListener('click', closeDetailModal)
-  
+
+  if (type === 'analysis') {
+    const restoreBtn = document.getElementById('restore-analysis-from-detail')
+    if (restoreBtn && data) {
+      restoreBtn.addEventListener('click', async () => {
+        restoreBtn.disabled = true
+        try {
+          const { applyAnalysisSnapshotToLocal } = await import('./studentActivity.js')
+          const r = await applyAnalysisSnapshotToLocal(data)
+          closeDetailModal()
+          alert(
+            r.hadExtracted
+              ? '작업대에 불러왔습니다. 명세서 탐색하기를 열면 요약과 명세서 본문(추출 텍스트)을 이어서 쓸 수 있어요.'
+              : '분석 요약은 불러왔습니다. 명세서 본문은 Storage에 없거나 불러오지 못했어요. 같은 PDF를 다시 올리면 보조교사 대화 등에 원문이 포함돼요.'
+          )
+          const activityFrame = document.getElementById('activity-frame')
+          if (activityFrame && activityFrame.src) {
+            activityFrame.src = activityFrame.src
+          }
+        } catch (err) {
+          console.error(err)
+          alert('불러오기 중 오류가 발생했습니다.')
+        } finally {
+          restoreBtn.disabled = false
+        }
+      })
+    }
+  }
+
   const handleEsc = (e) => {
     if (e.key === 'Escape') {
       closeDetailModal()
@@ -522,6 +590,11 @@ activityNavBtns.forEach((btn) => {
   btn.addEventListener('click', () => {
     const src = btn.getAttribute('data-activity-src')
     if (!src || !activityFrame || !activityPlaceholder) return
+
+    if (src.includes('#concretize') && !hasSavedIdeaSelection()) {
+      alert('먼저 「아이디어 창출하기」에서 생성된 아이디어 중 하나를 선택해 주세요.')
+      return
+    }
 
     activityNavBtns.forEach((b) => b.classList.remove('is-active'))
     btn.classList.add('is-active')
