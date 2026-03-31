@@ -324,6 +324,14 @@ export async function restoreRecentActivitiesForContinue() {
     localStorage.removeItem(DRAWING_RESTORE_KEY)
   }
 
+  if (recent.inventionSpec?.data && typeof recent.inventionSpec.data === 'object') {
+    try {
+      localStorage.setItem('myInventionSpecDraft', JSON.stringify(recent.inventionSpec.data))
+      parts.push('나만의 발명품 명세서 초안')
+      hadAny = true
+    } catch (_) {}
+  }
+
   return {
     hadAny,
     message: parts.length ? parts.join(', ') : '복원할 항목 없음',
@@ -377,17 +385,58 @@ export async function persistLocalWorkbenchToFirebase() {
   } catch (e) {
     console.warn('그림 Firebase 동기화 실패:', e)
   }
+
+  try {
+    const rawInv = localStorage.getItem('myInventionSpecDraft')
+    if (rawInv) {
+      const data = JSON.parse(rawInv)
+      if (data && typeof data === 'object' && Object.keys(data).length > 0) {
+        await saveStudentActivity('invention_spec', data)
+      }
+    }
+  } catch (e) {
+    console.warn('발명 명세서 초안 Firebase 동기화 실패:', e)
+  }
 }
 
 /**
  * 최종 활동 보고서 PDF 생성 (reflection 포함)
+ * @param {object} [options]
+ * @param {{ reflection?: string; feedback?: string }} [options.reflectionOverride] iframe에서 방금 저장한 소감·피드백(재조회 레이스 방지)
  */
-export async function generateFinalPdf() {
+export async function generateFinalPdf(options = {}) {
   try {
-    // 최근 활동 가져오기 (reflection 포함)
     const activities = await getRecentActivities()
-    
-    if (!activities.analysis && !activities.idea && !activities.drawing) {
+
+    let analysisData = activities.analysis?.data
+    try {
+      const raw = localStorage.getItem('analysisData')
+      if (raw) {
+        const p = JSON.parse(raw)
+        if (p && typeof p === 'object' && Object.keys(p).length > 0) analysisData = p
+      }
+    } catch (_) {}
+
+    let ideaData = activities.idea?.data
+    try {
+      const raw = localStorage.getItem(IDEA_RESTORE_KEY)
+      if (raw) {
+        const p = JSON.parse(raw)
+        if (p?.ideas && Array.isArray(p.ideas) && p.ideas.length > 0) ideaData = p
+      }
+    } catch (_) {}
+
+    let drawingData = activities.drawing?.data
+    try {
+      const img = localStorage.getItem(DRAWING_RESTORE_KEY)
+      if (img && typeof img === 'string' && img.startsWith('data:')) {
+        drawingData = { ...(drawingData || {}), image: img }
+      }
+    } catch (_) {}
+
+    const reflectionData = options.reflectionOverride || activities.reflection?.data
+
+    if (!analysisData && !ideaData && !drawingData && !reflectionData) {
       alert('저장된 활동이 없습니다. 먼저 활동을 완료해주세요.')
       return
     }
@@ -402,10 +451,10 @@ export async function generateFinalPdf() {
           작성일: ${new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' })}
         </p>
 
-        ${activities.analysis ? generateAnalysisSection(activities.analysis.data) : ''}
-        ${activities.idea ? generateIdeaSection(activities.idea.data) : ''}
-        ${activities.drawing ? generateDrawingSection(activities.drawing.data) : ''}
-        ${activities.reflection ? generateReflectionSection(activities.reflection.data) : ''}
+        ${analysisData ? generateAnalysisSection(analysisData) : ''}
+        ${ideaData ? generateIdeaSection(ideaData) : ''}
+        ${drawingData ? generateDrawingSection(drawingData) : ''}
+        ${reflectionData ? generateReflectionSection(reflectionData) : ''}
       </div>
     `
 

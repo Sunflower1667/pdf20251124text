@@ -1,5 +1,6 @@
 import './drawing.css'
 import { saveStudentActivity } from './activityStorage.js'
+import { listenForWorkbenchFlushRequest } from './workbenchFlush.js'
 
 const app = document.querySelector('#app')
 
@@ -414,5 +415,12 @@ downloadDrawingBtn.addEventListener('click', () => {
   link.download = `발명품-그림-${new Date().toISOString().split('T')[0]}.png`
   link.href = canvas.toDataURL('image/png')
   link.click()
+})
+
+listenForWorkbenchFlushRequest(() => {
+  if (!canvas || !ctx) return
+  try {
+    localStorage.setItem('studentDrawingRestore', canvas.toDataURL('image/png'))
+  } catch (_) {}
 })
 

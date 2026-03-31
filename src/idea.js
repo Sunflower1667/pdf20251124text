@@ -1,6 +1,7 @@
 import './idea.css'
 import { jsPDF } from 'jspdf'
 import html2canvas from 'html2canvas'
+import { listenForWorkbenchFlushRequest } from './workbenchFlush.js'
 
 const OPENAI_URL = import.meta.env.VITE_OPENAI_API_URL || 'https://api.openai.com/v1/responses'
 const OPENAI_MODEL = import.meta.env.VITE_OPENAI_MODEL || 'gpt-4o-mini'
@@ -1150,6 +1151,34 @@ async function safeJson(response) {
     return null
   }
 }
+
+function flushStudentIdeaSessionToStorage() {
+  const kwRaw = keywordInput?.value?.trim()
+  const kws = kwRaw
+    ? kwRaw.split(/[,，]/).map((s) => s.trim()).filter(Boolean)
+    : lastKeywords
+  const hasWork =
+    generatedIdeas.length > 0 ||
+    (kws && kws.length > 0) ||
+    (chatHistory && chatHistory.length > 1) ||
+    (refinedIdeasData && refinedIdeasData.length > 0)
+  if (!hasWork) return
+  const payload = {
+    ideas: generatedIdeas,
+    keywords: kws?.length ? kws : lastKeywords,
+    selectedIdea:
+      selectedIdeaIndex >= 0 && generatedIdeas[selectedIdeaIndex]
+        ? generatedIdeas[selectedIdeaIndex]
+        : null,
+    chatHistory,
+    refinedIdea: refinedIdeasData?.length ? refinedIdeasData : null,
+  }
+  try {
+    localStorage.setItem('studentIdeaSessionRestore', JSON.stringify(payload))
+  } catch (_) {}
+}
+
+listenForWorkbenchFlushRequest(flushStudentIdeaSessionToStorage)
 
 if (generateIdeasBtn) {
   tryRestoreStudentIdeaSession()

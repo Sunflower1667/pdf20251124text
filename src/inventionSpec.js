@@ -1,4 +1,5 @@
 import './inventionSpec.css'
+import { listenForWorkbenchFlushRequest } from './workbenchFlush.js'
 
 const STORAGE_KEY = 'myInventionSpecDraft'
 
@@ -114,4 +115,13 @@ form.addEventListener('input', () => {
       }, 2000)
     }
   }, 400)
+})
+
+listenForWorkbenchFlushRequest(() => {
+  const data = {}
+  FIELDS.forEach((f) => {
+    const el = document.getElementById(f.id)
+    if (el) data[f.id] = el.value
+  })
+  saveDraft(data)
 })

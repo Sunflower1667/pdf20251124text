@@ -1,6 +1,6 @@
 // 학생 활동을 Firebase Firestore에 저장하고 조회하는 유틸리티 함수
 import { initFirebase } from './firebaseConfig.js'
-import { getFirestore, collection, addDoc, doc, setDoc, serverTimestamp, getDocs, query, orderBy, limit } from 'firebase/firestore'
+import { getFirestore, collection, addDoc, doc, setDoc, serverTimestamp, getDocs, query, where, orderBy, limit } from 'firebase/firestore'
 import { getStorage, ref, uploadBytes } from 'firebase/storage'
 
 /**
@@ -198,43 +198,85 @@ export async function getStudentActivitiesById(studentId, maxResults = 50) {
 }
 
 /**
+ * 타입별 최신 활동 1건 (timestamp 기준). 전체 50건을 훑는 방식은 다른 타입 기록이 많으면
+ * 오래된 명세/아이디어가 잡히거나 최신이 목록에서 빠질 수 있어 쿼리로 분리합니다.
+ * @param {import('firebase/firestore').Firestore} db
+ * @param {string} studentId
+ * @param {string} type
+ */
+async function getLatestActivityByType(db, studentId, type) {
+  if (!studentId || !type) return null
+  const activitiesRef = collection(db, 'students', studentId, 'activities')
+  const q = query(activitiesRef, where('type', '==', type), orderBy('timestamp', 'desc'), limit(1))
+  const querySnapshot = await getDocs(q)
+  if (querySnapshot.empty) return null
+  const docSnap = querySnapshot.docs[0]
+  const data = docSnap.data()
+  return {
+    id: docSnap.id,
+    type: data.type,
+    data: data.data,
+    timestamp: data.timestamp?.toDate?.() || new Date(),
+  }
+}
+
+function pickLatestFromFlatList(activities) {
+  const result = {
+    analysis: null,
+    idea: null,
+    drawing: null,
+    reflection: null,
+    inventionSpec: null,
+  }
+  for (const activity of activities) {
+    if (activity.type === 'analysis' && !result.analysis) result.analysis = activity
+    else if (activity.type === 'idea' && !result.idea) result.idea = activity
+    else if (activity.type === 'drawing' && !result.drawing) result.drawing = activity
+    else if (activity.type === 'reflection' && !result.reflection) result.reflection = activity
+    else if (activity.type === 'invention_spec' && !result.inventionSpec) result.inventionSpec = activity
+    if (
+      result.analysis &&
+      result.idea &&
+      result.drawing &&
+      result.reflection &&
+      result.inventionSpec
+    ) {
+      break
+    }
+  }
+  return result
+}
+
+/**
  * 특정 학생의 최근 4개 활동(analysis, idea, drawing, reflection)을 가져오기 (교사용)
  * @param {string} studentId - 학생 ID
  * @returns {Promise<Object>} { analysis, idea, drawing, reflection }
  */
 export async function getRecentActivitiesByStudentId(studentId) {
   try {
-    const activities = await getStudentActivitiesById(studentId, 50)
-    
-    const result = {
-      analysis: null,
-      idea: null,
-      drawing: null,
-      reflection: null,
+    const firebaseResult = initFirebase()
+    if (!firebaseResult.app || !studentId) {
+      return { analysis: null, idea: null, drawing: null, reflection: null, inventionSpec: null }
     }
+    const db = getFirestore(firebaseResult.app)
 
-    // 각 타입별로 가장 최근 활동 찾기
-    for (const activity of activities) {
-      if (activity.type === 'analysis' && !result.analysis) {
-        result.analysis = activity
-      } else if (activity.type === 'idea' && !result.idea) {
-        result.idea = activity
-      } else if (activity.type === 'drawing' && !result.drawing) {
-        result.drawing = activity
-      } else if (activity.type === 'reflection' && !result.reflection) {
-        result.reflection = activity
-      }
-
-      // 모두 찾았으면 종료
-      if (result.analysis && result.idea && result.drawing && result.reflection) {
-        break
-      }
+    try {
+      const [analysis, idea, drawing, reflection, inventionSpec] = await Promise.all([
+        getLatestActivityByType(db, studentId, 'analysis'),
+        getLatestActivityByType(db, studentId, 'idea'),
+        getLatestActivityByType(db, studentId, 'drawing'),
+        getLatestActivityByType(db, studentId, 'reflection'),
+        getLatestActivityByType(db, studentId, 'invention_spec'),
+      ])
+      return { analysis, idea, drawing, reflection, inventionSpec }
+    } catch (e) {
+      console.warn('타입별 최신 활동 조회 실패, 목록 스캔으로 대체합니다. Firestore 복합 색인(type+timestamp)이 필요할 수 있습니다.', e)
+      const activities = await getStudentActivitiesById(studentId, 300)
+      return pickLatestFromFlatList(activities)
     }
-
-    return result
   } catch (error) {
     console.error('최근 활동 조회 오류:', error)
-    return { analysis: null, idea: null, drawing: null, reflection: null }
+    return { analysis: null, idea: null, drawing: null, reflection: null, inventionSpec: null }
   }
 }
 
@@ -244,37 +286,32 @@ export async function getRecentActivitiesByStudentId(studentId) {
  */
 export async function getRecentActivities() {
   try {
-    const activities = await getStudentActivities(50)
-    
-    const result = {
-      analysis: null,
-      idea: null,
-      drawing: null,
-      reflection: null,
+    const firebaseResult = initFirebase()
+    const userId = localStorage.getItem('userId')
+
+    if (!firebaseResult.app || !userId) {
+      return { analysis: null, idea: null, drawing: null, reflection: null, inventionSpec: null }
     }
 
-    // 각 타입별로 가장 최근 활동 찾기
-    for (const activity of activities) {
-      if (activity.type === 'analysis' && !result.analysis) {
-        result.analysis = activity
-      } else if (activity.type === 'idea' && !result.idea) {
-        result.idea = activity
-      } else if (activity.type === 'drawing' && !result.drawing) {
-        result.drawing = activity
-      } else if (activity.type === 'reflection' && !result.reflection) {
-        result.reflection = activity
-      }
+    const db = getFirestore(firebaseResult.app)
 
-      // 모두 찾았으면 종료
-      if (result.analysis && result.idea && result.drawing && result.reflection) {
-        break
-      }
+    try {
+      const [analysis, idea, drawing, reflection, inventionSpec] = await Promise.all([
+        getLatestActivityByType(db, userId, 'analysis'),
+        getLatestActivityByType(db, userId, 'idea'),
+        getLatestActivityByType(db, userId, 'drawing'),
+        getLatestActivityByType(db, userId, 'reflection'),
+        getLatestActivityByType(db, userId, 'invention_spec'),
+      ])
+      return { analysis, idea, drawing, reflection, inventionSpec }
+    } catch (e) {
+      console.warn('타입별 최신 활동 조회 실패, 목록 스캔으로 대체합니다. Firestore 복합 색인(type+timestamp)이 필요할 수 있습니다.', e)
+      const activities = await getStudentActivities(300)
+      return pickLatestFromFlatList(activities)
     }
-
-    return result
   } catch (error) {
     console.error('최근 활동 조회 오류:', error)
-    return { analysis: null, idea: null, drawing: null, reflection: null }
+    return { analysis: null, idea: null, drawing: null, reflection: null, inventionSpec: null }
   }
 }
 

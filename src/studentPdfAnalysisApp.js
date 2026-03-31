@@ -2,6 +2,7 @@ import './student1.css'
 import { GlobalWorkerOptions, getDocument } from 'pdfjs-dist/build/pdf'
 import pdfWorker from 'pdfjs-dist/build/pdf.worker?url'
 import { jsPDF } from 'jspdf'
+import { listenForWorkbenchFlushRequest } from './workbenchFlush.js'
 
 GlobalWorkerOptions.workerSrc = pdfWorker
 
@@ -227,6 +228,15 @@ export function mountStudentPdfAnalysis(rootEl, options = {}) {
       }
     })
   }
+
+  listenForWorkbenchFlushRequest(() => {
+    if (lastAnalysisData && typeof lastAnalysisData === 'object') {
+      try {
+        localStorage.setItem('analysisData', JSON.stringify(lastAnalysisData))
+        if (lastExtractedText) localStorage.setItem('extractedText', lastExtractedText)
+      } catch (_) {}
+    }
+  })
 }
 
 function escapeHtml(s) {

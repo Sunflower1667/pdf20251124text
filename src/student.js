@@ -132,9 +132,15 @@ if (backBtn) {
   })
 }
 
-// 활동 종료하기 (reflection 모달 띄우기)
+// 활동 종료하기 (열려 있는 활동 iframe 내용을 먼저 localStorage에 맞춘 뒤 소감 모달)
 if (finishActivityBtn) {
-  finishActivityBtn.addEventListener('click', () => {
+  finishActivityBtn.addEventListener('click', async () => {
+    try {
+      const { requestChildWorkbenchFlush } = await import('./workbenchFlush.js')
+      await requestChildWorkbenchFlush(activityFrame?.contentWindow)
+    } catch (_) {
+      /* 플러시 실패해도 소감 단계는 진행 */
+    }
     showReflectionModal()
   })
 }
@@ -180,11 +186,19 @@ function showReflectionModal() {
       (event.data && typeof event.data === 'object' && event.data.type === 'finish-activity')
     if (!isFinish) return
 
+    const reflectionOverride =
+      event.data && typeof event.data === 'object' && event.data.reflection && typeof event.data.reflection === 'object'
+        ? event.data.reflection
+        : undefined
+
     try {
+      const { requestChildWorkbenchFlush } = await import('./workbenchFlush.js')
+      await requestChildWorkbenchFlush(activityFrame?.contentWindow)
+
       const sa = await import('./studentActivity.js')
       await sa.persistLocalWorkbenchToFirebase()
-      await new Promise((r) => setTimeout(r, 400))
-      await sa.generateFinalPdf()
+      await new Promise((r) => setTimeout(r, 600))
+      await sa.generateFinalPdf({ reflectionOverride })
 
       closeModal()
       window.removeEventListener('message', messageHandler)

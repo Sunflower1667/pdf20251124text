@@ -151,12 +151,15 @@ if (finishActivityBtn) {
       await saveStudentActivity('reflection', { reflection: text, feedback: feedbackText })
 
       if (window.parent !== window) {
-        window.parent.postMessage({ type: 'finish-activity' }, '*')
+        window.parent.postMessage(
+          { type: 'finish-activity', reflection: { reflection: text, feedback: feedbackText } },
+          '*'
+        )
       } else {
         const sa = await import('./studentActivity.js')
         await sa.persistLocalWorkbenchToFirebase()
-        await new Promise((r) => setTimeout(r, 400))
-        await sa.generateFinalPdf()
+        await new Promise((r) => setTimeout(r, 600))
+        await sa.generateFinalPdf({ reflectionOverride: { reflection: text, feedback: feedbackText } })
         alert('활동이 완료되었습니다! Firebase에 저장되었고, 활동 보고서 PDF도 저장되었습니다.')
         window.location.href = 'index.html'
       }
