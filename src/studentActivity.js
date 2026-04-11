@@ -330,6 +330,149 @@ export async function applyAnalysisSnapshotToLocal(analysisPayload) {
   return { ok: true, hadExtracted: !!extracted.trim() }
 }
 
+/** 과거 활동 한 줄에 실제로 열어볼 수 있는 저장 내용이 있는지 */
+export function hasPastActivityOpenableContent(activity) {
+  if (!activity?.type || activity.data == null || typeof activity.data !== 'object') return false
+  const { type, data } = activity
+  switch (type) {
+    case 'analysis': {
+      const d = data
+      return !!(
+        (d.patentName && String(d.patentName).trim()) ||
+        (d.applicationNumber && String(d.applicationNumber).trim()) ||
+        (Array.isArray(d.features) && d.features.length) ||
+        (Array.isArray(d.materials) && d.materials.length) ||
+        (d.specPdfPath && String(d.specPdfPath).trim()) ||
+        (typeof d.extractedTextSnapshot === 'string' && d.extractedTextSnapshot.trim())
+      )
+    }
+    case 'idea': {
+      const d = data
+      if (d.ideas && Array.isArray(d.ideas) && d.ideas.length > 0) return true
+      if (d.name && String(d.name).trim()) return true
+      if (d.description && String(d.description).trim()) return true
+      if (d.refinedIdea) {
+        if (typeof d.refinedIdea === 'string' && d.refinedIdea.trim()) return true
+        if (Array.isArray(d.refinedIdea) && d.refinedIdea.length > 0) return true
+      }
+      if (d.chatHistory && Array.isArray(d.chatHistory) && d.chatHistory.length > 0) return true
+      return false
+    }
+    case 'drawing':
+      return !!(data.image && typeof data.image === 'string' && data.image.startsWith('data:'))
+    case 'reflection': {
+      const d = data
+      return !!(d.reflection && String(d.reflection).trim()) || !!(d.feedback && String(d.feedback).trim())
+    }
+    case 'invention_spec':
+      return Object.values(data).some((v) => {
+        if (typeof v === 'string') return v.trim().length > 0
+        if (v && typeof v === 'object') return Object.keys(v).length > 0
+        return false
+      })
+    default:
+      return false
+  }
+}
+
+function ideaIframeSrcFromPayload(data) {
+  if (!data || typeof data !== 'object') return 'idea.html'
+  const sel = data.selectedIdea
+  let hasSel = false
+  if (typeof sel === 'string') hasSel = !!sel.trim()
+  else if (sel && typeof sel === 'object') {
+    hasSel = !!(
+      String(sel.title || '').trim() ||
+      String(sel.name || '').trim() ||
+      String(sel.description || '').trim()
+    )
+  }
+  const r = data.refinedIdea
+  let hasRefined = false
+  if (typeof r === 'string') hasRefined = !!r.trim()
+  else if (Array.isArray(r) && r.length > 0) hasRefined = true
+  return hasSel || hasRefined ? 'idea.html#concretize' : 'idea.html'
+}
+
+/**
+ * 과거 활동 목록에서 asOf 시각 이전(또는 동시)에 저장된 그림 중 가장 최근 data URL을 고릅니다.
+ * (getStudentActivities 등 최신순 배열이어도 순서와 무관하게 동작)
+ */
+export function pickDrawingDataUrlAsOf(asOf, activitiesList) {
+  const asMs = asOf instanceof Date ? asOf.getTime() : new Date(asOf).getTime()
+  if (!Number.isFinite(asMs) || !Array.isArray(activitiesList)) return null
+  let bestUrl = null
+  let bestTs = -Infinity
+  for (const a of activitiesList) {
+    if (!a || a.type !== 'drawing') continue
+    const raw = a.data?.image
+    if (typeof raw !== 'string' || !raw.startsWith('data:')) continue
+    const ts = a.timestamp instanceof Date ? a.timestamp.getTime() : new Date(a.timestamp).getTime()
+    if (!Number.isFinite(ts) || ts > asMs) continue
+    if (ts >= bestTs) {
+      bestTs = ts
+      bestUrl = raw
+    }
+  }
+  return bestUrl
+}
+
+/** drawing 타입 한 건을 연 경우를 제외하고, 해당 활동 시점에 맞는 그림을 localStorage에 맞춤 */
+function syncDrawingLocalStorageForPastActivity(activity, pastActivitiesList) {
+  if (!activity || !Array.isArray(pastActivitiesList)) return
+  if (activity.type === 'drawing') return
+  const asOf = activity.timestamp instanceof Date ? activity.timestamp : new Date(activity.timestamp)
+  const url = pickDrawingDataUrlAsOf(asOf, pastActivitiesList)
+  if (url) localStorage.setItem(DRAWING_RESTORE_KEY, url)
+  else localStorage.removeItem(DRAWING_RESTORE_KEY)
+}
+
+/**
+ * 과거 활동 한 건을 localStorage에 반영하고, 대시보드 iframe 주소를 돌려줍니다.
+ * @param {object} activity
+ * @param {object[] | null} [pastActivitiesList] - loadPastActivities() 결과(최신순). 있으면 그림도 해당 시점에 맞게 맞춤.
+ * @returns {Promise<{ mode: 'iframe'; src: string } | { mode: 'detail' } | { mode: 'none' }>}
+ */
+export async function preparePastActivityForWorkspace(activity, pastActivitiesList = null) {
+  if (!hasPastActivityOpenableContent(activity)) return { mode: 'none' }
+  const { type, data } = activity
+  if (type === 'reflection') {
+    syncDrawingLocalStorageForPastActivity(activity, pastActivitiesList)
+    return { mode: 'detail' }
+  }
+
+  try {
+    let result = /** @type {{ mode: 'iframe'; src: string } | { mode: 'none' }} */ ({ mode: 'none' })
+    switch (type) {
+      case 'analysis':
+        await applyAnalysisSnapshotToLocal(data)
+        result = { mode: 'iframe', src: 'student2.html' }
+        break
+      case 'idea':
+        localStorage.setItem(IDEA_RESTORE_KEY, JSON.stringify(data))
+        result = { mode: 'iframe', src: ideaIframeSrcFromPayload(data) }
+        break
+      case 'drawing':
+        localStorage.setItem(DRAWING_RESTORE_KEY, data.image)
+        result = { mode: 'iframe', src: 'drawing.html' }
+        break
+      case 'invention_spec':
+        localStorage.setItem('myInventionSpecDraft', JSON.stringify(data))
+        result = { mode: 'iframe', src: 'invention-spec.html' }
+        break
+      default:
+        return { mode: 'none' }
+    }
+    if (result.mode === 'iframe' && type !== 'drawing') {
+      syncDrawingLocalStorageForPastActivity(activity, pastActivitiesList)
+    }
+    return result
+  } catch (e) {
+    console.error('preparePastActivityForWorkspace:', e)
+    return { mode: 'none' }
+  }
+}
+
 /**
  * Firebase에 저장된 최신 활동을 localStorage에 복원해 각 활동 페이지에서 이어하기 가능하게 함.
  * @returns {Promise<{ hadAny: boolean; message: string }>}

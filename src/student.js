@@ -85,6 +85,38 @@ function hasSavedIdeaSelection() {
   }
 }
 
+const IDEA_SELECT_PROMPT =
+  '먼저 「아이디어 창출하기」에서 생성된 아이디어 중 하나를 선택한 뒤, 「발명품 선정 및 구체화」 단계를 진행해 주세요.'
+
+function activityNeedsPriorIdeaSelection(src) {
+  if (!src) return false
+  if (src.includes('#concretize')) return true
+  if (src.startsWith('drawing.html')) return true
+  if (src.startsWith('invention-spec.html')) return true
+  return false
+}
+
+function openWorkspaceIframe(src) {
+  if (!src || !activityFrame || !activityPlaceholder) return false
+
+  if (activityNeedsPriorIdeaSelection(src) && !hasSavedIdeaSelection()) {
+    alert(IDEA_SELECT_PROMPT)
+    return false
+  }
+
+  activityNavBtns.forEach((b) => b.classList.remove('is-active'))
+  const navBtn = [...activityNavBtns].find((b) => b.getAttribute('data-activity-src') === src)
+  if (navBtn) navBtn.classList.add('is-active')
+
+  activityPlaceholder.hidden = true
+  activityFrame.hidden = false
+
+  const base = src.split('#')[0]
+  const hash = src.includes('#') ? '#' + src.split('#').slice(1).join('#') : ''
+  activityFrame.src = `${base}${hash}`
+  return true
+}
+
 window.addEventListener('message', (e) => {
   if (e.data?.type !== 'student-idea-step') return
   const step = e.data.step
@@ -321,7 +353,7 @@ if (viewPastBtn) {
     try {
       const { loadPastActivities } = await import('./studentActivity.js')
       const activities = await loadPastActivities()
-      showPastActivitiesModal(activities)
+      await showPastActivitiesModal(activities)
     } catch (error) {
       console.error('과거 활동 로드 오류:', error)
       alert('과거 활동을 불러오는 중 오류가 발생했습니다.')
@@ -333,7 +365,10 @@ if (viewPastBtn) {
 }
 
 // 과거 활동 모달 표시
-function showPastActivitiesModal(activities) {
+async function showPastActivitiesModal(activities) {
+  const { hasPastActivityOpenableContent, preparePastActivityForWorkspace } = await import('./studentActivity.js')
+  const anyOpenable = activities.some((a) => hasPastActivityOpenableContent(a))
+
   // 모달 HTML 생성
   const modalHtml = `
     <div id="past-activities-modal" class="past-activities-modal">
@@ -347,6 +382,9 @@ function showPastActivitiesModal(activities) {
           ${activities.length === 0 
             ? '<p style="text-align: center; color: #64748b; padding: 40px;">저장된 활동이 없습니다.</p>'
             : `
+            ${anyOpenable ? `<p class="past-activities-hint" style="margin: 0 0 16px; font-size: 0.9rem; color: #64748b;">
+              저장된 내용이 있는 항목을 누르면 해당 활동 화면으로 이동합니다. (소감은 상세 보기로 열립니다.)
+            </p>` : ''}
             <div class="activities-list">
               ${activities.map((activity, index) => {
                 const date = activity.timestamp ? new Date(activity.timestamp).toLocaleString('ko-KR') : '날짜 없음'
@@ -354,12 +392,18 @@ function showPastActivitiesModal(activities) {
                   analysis: '명세서 분석',
                   idea: '아이디어 창출',
                   drawing: '발명품 표현하기',
-                  reflection: '오늘 활동 소감'
+                  reflection: '오늘 활동 소감',
+                  invention_spec: '나만의 발명품 명세서 완성하기',
                 }
                 const typeLabel = typeLabels[activity.type] || activity.type
+                const openable = hasPastActivityOpenableContent(activity)
+                const openableClass = openable ? 'activity-item--openable' : ''
+                const a11yAttrs = openable
+                  ? ` role="button" tabindex="0" aria-label="${sanitize(typeLabel)} 기록에서 이어하기"`
+                  : ''
                 
                 return `
-                  <div class="activity-item" data-index="${index}">
+                  <div class="activity-item ${openableClass}" data-index="${index}"${a11yAttrs}>
                     <div class="activity-header">
                       <span class="activity-type">${typeLabel}</span>
                       <span class="activity-date">${date}</span>
@@ -367,7 +411,14 @@ function showPastActivitiesModal(activities) {
                     <div class="activity-preview">
                       ${getActivityPreview(activity)}
                     </div>
-                    <button class="view-detail-btn" data-index="${index}">상세 보기</button>
+                    <div class="activity-item-actions">
+                      <button type="button" class="view-detail-btn" data-index="${index}">상세 보기</button>
+                      ${
+                        activity.type === 'invention_spec' && openable
+                          ? `<button type="button" class="past-load-spec-btn" data-index="${index}">이 내용으로 불러오기</button>`
+                          : ''
+                      }
+                    </div>
                   </div>
                 `
               }).join('')}
@@ -386,23 +437,8 @@ function showPastActivitiesModal(activities) {
   const closeBtn = document.getElementById('modal-close-btn')
   const overlay = modal.querySelector('.modal-overlay')
   const viewDetailBtns = modal.querySelectorAll('.view-detail-btn')
-  
-  // 닫기 버튼
-  const closeModal = () => {
-    document.body.removeChild(modal)
-  }
-  
-  closeBtn.addEventListener('click', closeModal)
-  overlay.addEventListener('click', closeModal)
-  
-  // 상세 보기 버튼
-  viewDetailBtns.forEach(btn => {
-    btn.addEventListener('click', () => {
-      const index = parseInt(btn.dataset.index)
-      const activity = activities[index]
-      showActivityDetail(activity)
-    })
-  })
+  const loadSpecBtns = modal.querySelectorAll('.past-load-spec-btn')
+  const activitiesList = modal.querySelector('.activities-list')
   
   // ESC 키로 닫기
   const handleEsc = (e) => {
@@ -411,6 +447,92 @@ function showPastActivitiesModal(activities) {
       document.removeEventListener('keydown', handleEsc)
     }
   }
+
+  // 닫기 버튼
+  const closeModal = () => {
+    document.removeEventListener('keydown', handleEsc)
+    if (document.body.contains(modal)) {
+      document.body.removeChild(modal)
+    }
+  }
+  
+  closeBtn.addEventListener('click', closeModal)
+  overlay.addEventListener('click', closeModal)
+  
+  // 상세 보기 버튼
+  viewDetailBtns.forEach((btn) => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation()
+      const index = parseInt(btn.dataset.index, 10)
+      const activity = activities[index]
+      showActivityDetail(activity)
+    })
+  })
+
+  // 나만의 발명품 명세서 — 목록에서 바로 불러오기
+  loadSpecBtns.forEach((btn) => {
+    btn.addEventListener('click', async (e) => {
+      e.stopPropagation()
+      const index = parseInt(btn.dataset.index, 10)
+      const activity = activities[index]
+      if (!activity || activity.type !== 'invention_spec') return
+      if (!hasPastActivityOpenableContent(activity)) return
+      const result = await preparePastActivityForWorkspace(activity, activities)
+      if (result.mode !== 'iframe') return
+      const ok = openWorkspaceIframe(result.src)
+      if (ok) {
+        closeModal()
+        try {
+          activityFrame.src = activityFrame.src
+        } catch (_) {}
+      }
+    })
+  })
+
+  // 저장된 활동 → 해당 iframe으로 이동 (비동기 복원)
+  if (activitiesList && activities.length > 0) {
+    const tryOpenRow = async (index) => {
+      const activity = activities[index]
+      if (!activity || !hasPastActivityOpenableContent(activity)) return
+      const result = await preparePastActivityForWorkspace(activity, activities)
+      if (result.mode === 'none') return
+      if (result.mode === 'detail') {
+        closeModal()
+        showActivityDetail(activity)
+        return
+      }
+      if (result.mode === 'iframe') {
+        const ok = openWorkspaceIframe(result.src)
+        if (ok) {
+          closeModal()
+          try {
+            activityFrame.src = activityFrame.src
+          } catch (_) {
+            /* 동일 URL 새로고침은 일부 환경에서만 필요 */
+          }
+        }
+      }
+    }
+
+    activitiesList.addEventListener('click', (e) => {
+      const item = e.target.closest('.activity-item')
+      if (!item || e.target.closest('.view-detail-btn') || e.target.closest('.past-load-spec-btn')) return
+      const index = parseInt(item.dataset.index, 10)
+      if (Number.isNaN(index)) return
+      void tryOpenRow(index)
+    })
+
+    activitiesList.addEventListener('keydown', (e) => {
+      if (e.key !== 'Enter' && e.key !== ' ') return
+      const item = e.target.closest('.activity-item')
+      if (!item || e.target.closest('.view-detail-btn') || e.target.closest('.past-load-spec-btn')) return
+      e.preventDefault()
+      const index = parseInt(item.dataset.index, 10)
+      if (Number.isNaN(index)) return
+      void tryOpenRow(index)
+    })
+  }
+  
   document.addEventListener('keydown', handleEsc)
 }
 
@@ -431,6 +553,14 @@ function getActivityPreview(activity) {
     const { reflection, feedback } = data || {}
     const preview = reflection ? sanitize(reflection.substring(0, 100)) : '소감 내용 없음'
     return `<p>${preview}${reflection && reflection.length > 100 ? '...' : ''}</p>${feedback ? '<p style="color: #64748b; font-size: 0.9em;">피드백 있음</p>' : ''}`
+  } else if (type === 'invention_spec') {
+    const d = data || {}
+    const title = typeof d.title === 'string' ? d.title.trim() : ''
+    if (title) return `<p><strong>${sanitize(title)}</strong></p>`
+    const first = Object.values(d).find((v) => typeof v === 'string' && v.trim())
+    if (first)
+      return `<p>${sanitize(first.substring(0, 120))}${first.length > 120 ? '...' : ''}</p>`
+    return '<p>명세서 초안이 저장되어 있습니다.</p>'
   }
   
   return '<p>활동 내용</p>'
@@ -508,6 +638,28 @@ function showActivityDetail(activity) {
           <div style="padding: 15px; background: #ecfdf5; border-radius: 8px; white-space: pre-wrap; line-height: 1.8;">${sanitize(feedback)}</div>
         </div>
       ` : '<p>피드백이 아직 생성되지 않았습니다.</p>'}
+    `
+  } else if (type === 'invention_spec') {
+    const d = data || {}
+    const fieldLabels = {
+      title: '발명의 명칭',
+      field: '기술분야',
+      background: '배경이 되는 기술',
+      problem: '해결하고자 하는 과제',
+      solution: '과제를 해결하기 위한 수단',
+      effect: '발명의 효과',
+      figures: '도면·그림에 대한 간단한 설명',
+    }
+    const blocks = Object.entries(d)
+      .filter(([, v]) => typeof v === 'string' && v.trim())
+      .map(([k, v]) => {
+        const label = fieldLabels[k] || k
+        return `<p><strong>${sanitize(label)}:</strong></p><div style="white-space: pre-wrap; padding: 10px; background: #f8fafc; border-radius: 8px;">${sanitize(v)}</div>`
+      })
+    detailHtml = `
+      <h3>나만의 발명품 명세서 완성하기</h3>
+      <p><strong>작성일:</strong> ${date}</p>
+      ${blocks.length ? blocks.join('') : '<p>저장된 항목이 없습니다.</p>'}
     `
   }
   
@@ -589,22 +741,8 @@ function sanitize(value) {
 activityNavBtns.forEach((btn) => {
   btn.addEventListener('click', () => {
     const src = btn.getAttribute('data-activity-src')
-    if (!src || !activityFrame || !activityPlaceholder) return
-
-    if (src.includes('#concretize') && !hasSavedIdeaSelection()) {
-      alert('먼저 「아이디어 창출하기」에서 생성된 아이디어 중 하나를 선택해 주세요.')
-      return
-    }
-
-    activityNavBtns.forEach((b) => b.classList.remove('is-active'))
-    btn.classList.add('is-active')
-
-    activityPlaceholder.hidden = true
-    activityFrame.hidden = false
-
-    const base = src.split('#')[0]
-    const hash = src.includes('#') ? '#' + src.split('#').slice(1).join('#') : ''
-    activityFrame.src = `${base}${hash}`
+    if (!src) return
+    openWorkspaceIframe(src)
   })
 })
 
