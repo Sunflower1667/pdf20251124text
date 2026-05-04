@@ -1,6 +1,7 @@
 import './student.css'
 import { initFirebase } from './firebaseConfig.js'
 import { clearStudentWorkbenchLocalDrafts } from './studentWorkbenchStorage.js'
+import { collectRefinedSections } from './refinedIdeaSections.js'
 import { onAuthStateChanged, signOut } from 'firebase/auth'
 
 const app = document.querySelector('#app')
@@ -17,8 +18,9 @@ app.innerHTML = `
         <div class="header-actions">
           <button id="finish-activity-btn" class="action-btn-primary">활동 종료하기</button>
           <button id="resume-activities-btn" class="action-btn-primary">과거 활동 불러오기</button>
-          <div style="display: flex; align-items: center; gap: 12px;">
-            <button id="view-past-btn" class="action-btn-secondary">과거 활동 보기</button>
+          <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+            <button id="view-past-btn" class="action-btn-secondary" type="button">과거 활동 보기</button>
+            <button id="save-workbench-btn" class="action-btn-secondary" type="button">저장하기</button>
             <div class="user-info" id="user-info" style="display: none;">
               <div class="user-profile">
                 <img id="user-photo" src="" alt="프로필" class="user-avatar" onerror="this.style.display='none'">
@@ -57,6 +59,7 @@ const backBtn = document.querySelector('#back-btn')
 const finishActivityBtn = document.querySelector('#finish-activity-btn')
 const resumeActivitiesBtn = document.querySelector('#resume-activities-btn')
 const viewPastBtn = document.querySelector('#view-past-btn')
+const saveWorkbenchBtn = document.querySelector('#save-workbench-btn')
 const activityNavBtns = document.querySelectorAll('.activity-nav-btn')
 const activityPlaceholder = document.querySelector('#activity-placeholder')
 const activityFrame = document.querySelector('#activity-frame')
@@ -236,22 +239,28 @@ function showReflectionModal() {
   const overlay = modal.querySelector('.modal-overlay')
   const iframe = document.getElementById('reflection-iframe')
   
-  // 닫기 버튼
+  let isFinishing = false
+
   const closeModal = () => {
+    window.removeEventListener('message', messageHandler)
     if (document.body.contains(modal)) {
       document.body.removeChild(modal)
     }
   }
-  
+
   closeBtn.addEventListener('click', closeModal)
   overlay.addEventListener('click', closeModal)
-  
+
   // iframe에서 메시지 받기 (활동 종료하기: 소감·피드백 Firebase 저장 후 전송)
   const messageHandler = async (event) => {
     const isFinish =
       event.data === 'finish-activity' ||
       (event.data && typeof event.data === 'object' && event.data.type === 'finish-activity')
     if (!isFinish) return
+
+    if (isFinishing) return
+    isFinishing = true
+    window.removeEventListener('message', messageHandler)
 
     const reflectionOverride =
       event.data && typeof event.data === 'object' && event.data.reflection && typeof event.data.reflection === 'object'
@@ -267,16 +276,18 @@ function showReflectionModal() {
       await new Promise((r) => setTimeout(r, 600))
       await sa.generateFinalPdf({ reflectionOverride })
 
-      closeModal()
-      window.removeEventListener('message', messageHandler)
+      if (document.body.contains(modal)) {
+        document.body.removeChild(modal)
+      }
 
       showCompletionMessage()
     } catch (error) {
       console.error('활동 종료 처리 오류:', error)
       alert('활동을 마무리하는 중 오류가 발생했습니다. 네트워크를 확인 후 다시 시도해 주세요.')
+      isFinishing = false
     }
   }
-  
+
   window.addEventListener('message', messageHandler)
 }
 
@@ -286,10 +297,15 @@ function showCompletionMessage() {
     <div id="completion-modal" class="completion-modal">
       <div class="modal-overlay"></div>
       <div class="modal-content completion-modal-content">
-        <div class="completion-icon" style="font-size: 4rem; margin-bottom: 20px;">✅</div>
-        <h2 style="margin: 0 0 15px 0; font-size: 1.5rem;">활동이 완료되었습니다!</h2>
-        <p style="margin: 0 0 30px 0; color: #64748b;">활동 내용이 Firebase에 저장되었고, 최종 보고서 PDF 파일도 저장되었습니다.</p>
-        <button id="go-to-main-btn" class="action-btn-primary" style="padding: 12px 24px; font-size: 1rem; border: none; border-radius: 8px; cursor: pointer; background: #2563eb; color: white; font-weight: 600;">
+        <img
+          src="/completion.png"
+          alt="활동 완료"
+          class="completion-image"
+          onerror="this.outerHTML='<div class=\\'completion-icon\\'>🎉</div>'"
+        />
+        <h2 class="completion-title">활동이 완료되었습니다!</h2>
+        <p class="completion-desc">활동 내용이 저장되었습니다.</p>
+        <button id="go-to-main-btn" class="completion-cta">
           메인 페이지로 돌아가기
         </button>
       </div>
@@ -308,6 +324,32 @@ function showCompletionMessage() {
   
   overlay.addEventListener('click', () => {
     window.location.href = 'index.html'
+  })
+}
+
+// 저장하기 — 열려 있는 활동 화면을 localStorage에 맞춘 뒤, 모든 단계 데이터를 Firebase에 동기화
+if (saveWorkbenchBtn) {
+  saveWorkbenchBtn.addEventListener('click', async () => {
+    if (!localStorage.getItem('userId')) {
+      alert('로그인 후 저장할 수 있습니다.')
+      return
+    }
+    saveWorkbenchBtn.disabled = true
+    const prevLabel = saveWorkbenchBtn.textContent
+    saveWorkbenchBtn.textContent = '저장 중...'
+    try {
+      const { saveStudentWorkbenchToCloud } = await import('./studentActivity.js')
+      await saveStudentWorkbenchToCloud(activityFrame?.contentWindow)
+      alert(
+        '현재 이 기기에 있는 활동 내용을 클라우드에 저장했습니다.\n(명세서 탐색·아이디어·그림·발명 명세서 등 저장된 항목이 반영됩니다. 지금 보고 있는 활동 창의 최신 내용도 포함됩니다.)'
+      )
+    } catch (error) {
+      console.error('저장하기 오류:', error)
+      alert('저장 중 오류가 발생했습니다. 네트워크를 확인 후 다시 시도해 주세요.')
+    } finally {
+      saveWorkbenchBtn.disabled = false
+      saveWorkbenchBtn.textContent = prevLabel
+    }
   })
 }
 
@@ -397,11 +439,14 @@ async function showPastActivitiesModal(activities) {
                 }
                 const typeLabel = typeLabels[activity.type] || activity.type
                 const openable = hasPastActivityOpenableContent(activity)
+                // reflection은 작업대 iframe이 없어 '이 내용으로 불러오기'에서 제외 (상세 보기로만 확인 가능)
+                const loadable = openable && activity.type !== 'reflection'
                 const openableClass = openable ? 'activity-item--openable' : ''
                 const a11yAttrs = openable
                   ? ` role="button" tabindex="0" aria-label="${sanitize(typeLabel)} 기록에서 이어하기"`
                   : ''
-                
+                const hasId = !!activity.id
+
                 return `
                   <div class="activity-item ${openableClass}" data-index="${index}"${a11yAttrs}>
                     <div class="activity-header">
@@ -414,8 +459,13 @@ async function showPastActivitiesModal(activities) {
                     <div class="activity-item-actions">
                       <button type="button" class="view-detail-btn" data-index="${index}">상세 보기</button>
                       ${
-                        activity.type === 'invention_spec' && openable
+                        loadable
                           ? `<button type="button" class="past-load-spec-btn" data-index="${index}">이 내용으로 불러오기</button>`
+                          : ''
+                      }
+                      ${
+                        hasId
+                          ? `<button type="button" class="past-delete-btn" data-index="${index}" aria-label="${sanitize(typeLabel)} 기록 삭제">기록 삭제</button>`
                           : ''
                       }
                     </div>
@@ -438,6 +488,7 @@ async function showPastActivitiesModal(activities) {
   const overlay = modal.querySelector('.modal-overlay')
   const viewDetailBtns = modal.querySelectorAll('.view-detail-btn')
   const loadSpecBtns = modal.querySelectorAll('.past-load-spec-btn')
+  const deleteBtns = modal.querySelectorAll('.past-delete-btn')
   const activitiesList = modal.querySelector('.activities-list')
   
   // ESC 키로 닫기
@@ -469,22 +520,79 @@ async function showPastActivitiesModal(activities) {
     })
   })
 
-  // 나만의 발명품 명세서 — 목록에서 바로 불러오기
+  // 모든 활동 — 목록에서 바로 불러오기 (해당 단계 작업대 iframe으로 진입)
   loadSpecBtns.forEach((btn) => {
     btn.addEventListener('click', async (e) => {
       e.stopPropagation()
       const index = parseInt(btn.dataset.index, 10)
       const activity = activities[index]
-      if (!activity || activity.type !== 'invention_spec') return
-      if (!hasPastActivityOpenableContent(activity)) return
-      const result = await preparePastActivityForWorkspace(activity, activities)
-      if (result.mode !== 'iframe') return
-      const ok = openWorkspaceIframe(result.src)
-      if (ok) {
-        closeModal()
-        try {
-          activityFrame.src = activityFrame.src
-        } catch (_) {}
+      if (!activity || !hasPastActivityOpenableContent(activity)) return
+      const prevLabel = btn.textContent
+      btn.disabled = true
+      btn.textContent = '불러오는 중...'
+      try {
+        const result = await preparePastActivityForWorkspace(activity, activities)
+        if (result.mode === 'iframe') {
+          const ok = openWorkspaceIframe(result.src)
+          if (ok) {
+            closeModal()
+            try {
+              activityFrame.src = activityFrame.src
+            } catch (_) {}
+          }
+        } else if (result.mode === 'detail') {
+          closeModal()
+          showActivityDetail(activity)
+        }
+      } catch (err) {
+        console.error('과거 활동 불러오기 오류:', err)
+        alert('해당 기록을 불러오는 중 오류가 발생했습니다.')
+      } finally {
+        btn.disabled = false
+        btn.textContent = prevLabel
+      }
+    })
+  })
+
+  // 활동 한 건 삭제
+  deleteBtns.forEach((btn) => {
+    btn.addEventListener('click', async (e) => {
+      e.stopPropagation()
+      const index = parseInt(btn.dataset.index, 10)
+      const activity = activities[index]
+      if (!activity?.id) return
+      if (!confirm('이 기록을 삭제할까요? 삭제하면 되돌릴 수 없습니다.')) return
+
+      const prevLabel = btn.textContent
+      btn.disabled = true
+      btn.textContent = '삭제 중...'
+      try {
+        const { deleteStudentActivity } = await import('./activityStorage.js')
+        const ok = await deleteStudentActivity(activity.id)
+        if (!ok) {
+          alert('기록 삭제에 실패했습니다. 잠시 후 다시 시도해 주세요.')
+          return
+        }
+        // 화면에서 즉시 제거
+        const itemEl = btn.closest('.activity-item')
+        if (itemEl && itemEl.parentNode) itemEl.parentNode.removeChild(itemEl)
+        // 목록 캐시에서도 제거(인덱스 무효화 방지를 위해 splice 대신 비활성화)
+        activities[index] = null
+        // 남은 항목이 없으면 빈 안내 표시
+        const remaining = modal.querySelectorAll('.activity-item').length
+        if (remaining === 0) {
+          const body = modal.querySelector('.modal-body')
+          if (body) {
+            body.innerHTML =
+              '<p style="text-align: center; color: #64748b; padding: 40px;">저장된 활동이 없습니다.</p>'
+          }
+        }
+      } catch (err) {
+        console.error('과거 활동 삭제 오류:', err)
+        alert('기록 삭제 중 오류가 발생했습니다.')
+      } finally {
+        btn.disabled = false
+        btn.textContent = prevLabel
       }
     })
   })
@@ -516,7 +624,13 @@ async function showPastActivitiesModal(activities) {
 
     activitiesList.addEventListener('click', (e) => {
       const item = e.target.closest('.activity-item')
-      if (!item || e.target.closest('.view-detail-btn') || e.target.closest('.past-load-spec-btn')) return
+      if (
+        !item ||
+        e.target.closest('.view-detail-btn') ||
+        e.target.closest('.past-load-spec-btn') ||
+        e.target.closest('.past-delete-btn')
+      )
+        return
       const index = parseInt(item.dataset.index, 10)
       if (Number.isNaN(index)) return
       void tryOpenRow(index)
@@ -525,7 +639,13 @@ async function showPastActivitiesModal(activities) {
     activitiesList.addEventListener('keydown', (e) => {
       if (e.key !== 'Enter' && e.key !== ' ') return
       const item = e.target.closest('.activity-item')
-      if (!item || e.target.closest('.view-detail-btn') || e.target.closest('.past-load-spec-btn')) return
+      if (
+        !item ||
+        e.target.closest('.view-detail-btn') ||
+        e.target.closest('.past-load-spec-btn') ||
+        e.target.closest('.past-delete-btn')
+      )
+        return
       e.preventDefault()
       const index = parseInt(item.dataset.index, 10)
       if (Number.isNaN(index)) return
@@ -592,13 +712,37 @@ function showActivityDetail(activity) {
     `
   } else if (type === 'idea') {
     const { name, description, chatHistory, refinedIdea } = data || {}
+    let refinedDetail = ''
+    if (refinedIdea) {
+      if (typeof refinedIdea === 'string') {
+        refinedDetail = `<p style="white-space: pre-wrap;">${sanitize(refinedIdea)}</p>`
+      } else {
+        const sections = collectRefinedSections(refinedIdea, sanitize)
+        const nameLine = refinedIdea.name
+          ? `<p><strong>구체화 이름:</strong> ${sanitize(refinedIdea.name)}</p>`
+          : ''
+        refinedDetail =
+          nameLine +
+          (sections.length > 0
+            ? sections
+                .map(
+                  (s) => `
+            <div style="margin-bottom: 12px;">
+              <p><strong>${sanitize(s.title)}</strong></p>
+              <div style="padding-left: 8px; line-height: 1.65;">${s.html}</div>
+            </div>`
+                )
+                .join('')
+            : '<p>구체화 내용이 없습니다.</p>')
+      }
+    }
     detailHtml = `
       <h3>아이디어 창출</h3>
       <p><strong>작성일:</strong> ${date}</p>
       <p><strong>아이디어 이름:</strong> ${sanitize(name || '정보 없음')}</p>
       <p><strong>아이디어 설명:</strong></p>
       <p style="white-space: pre-wrap;">${sanitize(description || '정보 없음')}</p>
-      ${refinedIdea ? `<p><strong>구체화된 아이디어:</strong></p><p style="white-space: pre-wrap;">${sanitize(refinedIdea)}</p>` : ''}
+      ${refinedIdea ? `<p><strong>구체화된 아이디어:</strong></p><div style="padding: 12px; background: #f0fdf4; border-radius: 8px;">${refinedDetail}</div>` : ''}
       ${chatHistory && Array.isArray(chatHistory) && chatHistory.length > 0 ? `
         <p><strong>대화 내용:</strong></p>
         <div style="max-height: 300px; overflow-y: auto; padding: 10px; background: #f8fafc; border-radius: 8px;">

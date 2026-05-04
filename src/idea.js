@@ -2,9 +2,78 @@ import './idea.css'
 import { jsPDF } from 'jspdf'
 import html2canvas from 'html2canvas'
 import { listenForWorkbenchFlushRequest } from './workbenchFlush.js'
+import { collectRefinedSections, stripMarkdownBoldMarkers } from './refinedIdeaSections.js'
 
 const OPENAI_URL = import.meta.env.VITE_OPENAI_API_URL || 'https://api.openai.com/v1/responses'
 const OPENAI_MODEL = import.meta.env.VITE_OPENAI_MODEL || 'gpt-4o-mini'
+
+const TRIZ_PRINCIPLES = [
+  { id: 1, name: '쪼개기 (분할)', desc: '하나를 여러 개로 나누기', example: '조립식 레고, 화면을 접는 폴더블폰' },
+  { id: 2, name: '핵심만 뽑기 (추출)', desc: '방해되는 건 버리고 필요한 것만 빼기', example: '시끄러운 본체를 밖으로 뺀 에어컨 실외기' },
+  { id: 3, name: '부분만 다르게 (국소적 성질)', desc: '각 부분에 딱 맞는 기능을 넣기', example: '연필 뒤의 지우개, 다기능 칼' },
+  { id: 4, name: '삐딱하게 (비대칭)', desc: '똑같은 모양을 비대칭으로 바꾸기', example: '손이 편한 인체공학적 마우스' },
+  { id: 5, name: '합치기 (통합)', desc: '비슷한 것끼리 하나로 묶기', example: '샴푸+린스 올인원 제품, 복합기' },
+  { id: 6, name: '만능 도구 (다능성)', desc: '하나로 여러 가지 일 하기', example: '전화+카메라+게임기가 합쳐진 스마트폰' },
+  { id: 7, name: '쏙 집어넣기 (포개기)', desc: '큰 것 안에 작은 것 넣기', example: '겹쳐서 보관하는 마트 카트, 안테나' },
+  { id: 8, name: '무게 줄이기 (무게 보상)', desc: '가볍게 만들거나 띄우기', example: '헬륨 풍선을 단 광고 풍선' },
+  { id: 9, name: '미리 반대로 (사전 반대 조치)', desc: '나중에 생길 충격을 대비해 반대로 힘주기', example: '부러지지 않게 미리 굽혀둔 안경테' },
+  { id: 10, name: '미리 준비하기 (사전 조치)', desc: '필요한 걸 미리 세팅하기', example: '뜯기 편하게 점선이 있는 과자 봉지' },
+  { id: 11, name: '안전장치 (사전 보상)', desc: '만약을 위해 대비하기', example: '사고 나면 터지는 에어백, 데이터 자동 저장' },
+  { id: 12, name: '높이 맞추기 (높이 조정)', desc: '힘들게 올리지 말고 높이를 맞추기', example: '바닥이 낮은 저상 버스' },
+  { id: 13, name: '반대로 생각하기 (거꾸로)', desc: '위아래나 순서를 바꾸기', example: '거꾸로 세워두는 케첩 통, 러닝머신' },
+  { id: 14, name: '동글동글하게 (구형화)', desc: '각진 것을 둥글게 바꾸기', example: '부드럽게 써지는 볼펜 끝 작은 구슬' },
+  { id: 15, name: '변신 로봇 (역동성)', desc: '고정된 걸 움직이게 만들기', example: '길이 조절이 되는 셀카봉' },
+  { id: 16, name: '조금 부족하거나 넘치게', desc: '한 번에 안 되면 아주 많이 하거나 조금만 하기', example: '페인트를 듬뿍 칠하고 깎아내기' },
+  { id: 17, name: '층 쌓기 (차원 바꾸기)', desc: '평면을 입체로 만들기', example: '좁은 땅에 층층이 세우는 타워 주차장' },
+  { id: 18, name: '덜덜덜 진동 (기계적 진동)', desc: '흔들어서 문제 해결하기', example: '이물질을 털어내는 진동 칫솔' },
+  { id: 19, name: '깜빡깜빡 (주기적 작용)', desc: '계속하지 말고 끊어서 하기', example: '눈에 확 띄는 깜빡이 경고등' },
+  { id: 20, name: '끊기지 않게 (연속성)', desc: '멈추지 않고 계속 돌아가게 하기', example: '잉크가 계속 나오는 만년필' },
+  { id: 21, name: '눈보다 빠르게 (고속 처리)', desc: '아프거나 위험하기 전에 후다닥 하기', example: '통증을 못 느끼게 빠른 치과용 드릴' },
+  { id: 22, name: '위기를 기회로', desc: '나쁜 것을 좋은 곳에 쓰기', example: '뜨거운 열기로 동네를 따뜻하게 하는 지역난방' },
+  { id: 23, name: '스스로 확인 (피드백)', desc: '결과가 나오면 알아서 조절하기', example: '온도를 맞추는 보일러 센서' },
+  { id: 24, name: '중간 연결 (매개체)', desc: '중간에 무언가를 끼워 넣기', example: '뜨거운 냄비를 잡는 주방 장갑' },
+  { id: 25, name: '알아서 척척 (셀프 서비스)', desc: '물건이 스스로 하기', example: '충전하러 혼자 가는 로봇 청소기' },
+  { id: 26, name: '가짜 쓰기 (복제)', desc: '비싸거나 위험한 진짜 대신 가짜 쓰기', example: '운전 연습하는 VR 시뮬레이터' },
+  { id: 27, name: '한 번 쓰고 버리기 (일회용품)', desc: '싸게 만들어서 한 번만 쓰기', example: '위생적인 일회용 장갑' },
+  { id: 28, name: '다른 에너지 쓰기 (방식 교체)', desc: '기계 대신 전기나 빛 쓰기', example: '열쇠 대신 쓰는 지문 인식' },
+  { id: 29, name: '공기나 물의 힘', desc: '딱딱한 것 대신 공기 주머니 쓰기', example: '푹신한 에어쿠션 운동화' },
+  { id: 30, name: '얇은 막 만들기 (유연한 막)', desc: '얇은 비닐이나 막으로 보호하기', example: '스마트폰 액정 필름' },
+  { id: 31, name: '구멍 숭숭 (다공성 재료)', desc: '구멍을 내서 가볍게 하거나 통하게 하기', example: '물기를 쫙 흡수하는 스펀지' },
+  { id: 32, name: '색깔 바꾸기 (색상 변화)', desc: '색이나 투명도를 바꾸기', example: '뜨거우면 색이 변하는 온도 감지 컵' },
+  { id: 33, name: '끼리끼리 (동질성)', desc: '같은 재질로 만들기', example: '먹을 수 있는 초콜릿으로 만든 초콜릿 장식' },
+  { id: 34, name: '알아서 사라지기 (폐기 및 재생)', desc: '할 일 다 하면 사라지게 하기', example: '몸속에서 녹는 수술용 실' },
+  { id: 35, name: '성질 바꾸기 (속성 변화)', desc: '온도를 바꾸거나 농도를 조절하기', example: '액체로 된 물비누' },
+  { id: 36, name: '상태 바꾸기 (상전이)', desc: '얼거나 녹는 힘을 이용하기', example: '시원함을 유지하는 아이스팩' },
+  { id: 37, name: '늘어났다 줄어들었다 (열팽창)', desc: '열을 받으면 부풀어 오르는 성질 쓰기', example: '온도에 따라 휘어지는 바이메탈 스위치' },
+  { id: 38, name: '산소 팍팍 (강산화제)', desc: '산소를 많이 넣어 에너지를 얻기', example: '숨쉬기 편하게 하는 휴대용 산소 캔' },
+  { id: 39, name: '조용한 환경 (불활성 환경)', desc: '반응하지 않게 가두기', example: '과자가 안 부서지게 넣은 질소 가스' },
+  { id: 40, name: '섞어서 튼튼하게 (복합 재료)', desc: '여러 재료를 섞어 장점만 갖기', example: '가볍고 튼튼한 탄소 섬유 낚싯대' },
+]
+
+const TRIZ_GROUPS = [
+  { title: '1구역: 모양과 구조를 바꿔봐! (1~10번)', range: [1, 10] },
+  { title: '2구역: 움직임과 환경을 바꿔봐! (11~20번)', range: [11, 20] },
+  { title: '3구역: 기발한 아이디어로 해결! (21~30번)', range: [21, 30] },
+  { title: '4구역: 재료의 성질을 이용해! (31~40번)', range: [31, 40] },
+]
+
+function buildTrizPromptText() {
+  return TRIZ_PRINCIPLES.map(
+    (p) => `${p.id}. ${p.name}: ${p.desc} (예: ${p.example})`
+  ).join('\n')
+}
+
+function buildTrizGuideHtml() {
+  return TRIZ_GROUPS.map((g) => {
+    const items = TRIZ_PRINCIPLES.filter((p) => p.id >= g.range[0] && p.id <= g.range[1])
+      .map(
+        (p) =>
+          `<li><span class="triz-num">${p.id}</span> <strong>${sanitize(p.name)}</strong>: ${sanitize(p.desc)} <span class="triz-ex">(예: ${sanitize(p.example)})</span></li>`
+      )
+      .join('')
+    return `<div class="triz-group"><h4>${sanitize(g.title)}</h4><ul>${items}</ul></div>`
+  }).join('')
+}
 
 const app = document.querySelector('#app')
 
@@ -31,10 +100,19 @@ if (!analysisData || Object.keys(analysisData).length === 0) {
         <div class="section-header">
           <h2>1단계: 아이디어 생성</h2>
           <p class="section-description">
-            만들고 싶은 발명과 관련된 단어를 <strong>3개</strong> 입력한 뒤, 아이디어 생성을 눌러보세요.
-            (예: 스마트폰 거치대, 친환경, 접이식 → <strong>스마트폰 거치대, 친환경, 접이식</strong>)
+            만들고 싶은 발명과 관련된 단어를 <strong>3개</strong> 입력하면, 입력한 단어와 어울리는
+            <strong>TRIZ 발명 기법</strong>을 골라 그 원리를 적용한 새로운 아이디어를 만들어줘요.
+            (예: 스마트폰 거치대, 친환경, 접이식)
           </p>
         </div>
+
+        <details class="triz-guide">
+          <summary>🛠️ 발명 치트키 40: TRIZ 발명 기법 살펴보기</summary>
+          <div class="triz-guide-body">
+            <p class="triz-guide-intro">아래 40가지는 세상 속 발명품을 분석해 정리한 "생각의 기술"이에요. AI가 학생이 입력한 단어와 가장 잘 어울리는 기법을 골라 새 아이디어를 만들어줘요.</p>
+            ${buildTrizGuideHtml()}
+          </div>
+        </details>
 
         <div class="keyword-input-row">
           <label for="keyword-input" class="keyword-label">만들고 싶은 발명을 떠올리게 하는 단어 3개를 입력해 보세요.</label>
@@ -57,7 +135,7 @@ if (!analysisData || Object.keys(analysisData).length === 0) {
 
       <section class="chat-section" id="chat-section" style="display: none;">
         <div class="section-header">
-          <h2>2단계: 발명 도우미 챗봇</h2>
+          <h2>[2단계: 발명 아이디어 구체화하기]</h2>
           <p>선택한 아이디어를 구체화하기 위해 교사와 대화하듯이 질문해 보세요. 최대 10번까지 질문할 수 있습니다.</p>
         </div>
         <div id="selected-idea" class="selected-idea"></div>
@@ -69,7 +147,10 @@ if (!analysisData || Object.keys(analysisData).length === 0) {
             <button id="save-chat-btn" type="button" disabled>대화 내용 저장하기</button>
           </div>
         </div>
-        <div class="refine-action" style="margin-top: 20px; text-align: center;">
+        <div class="refine-step-subheader">
+          <h2>[구체화한 아이디어 정리하기]</h2>
+        </div>
+        <div class="refine-action" style="text-align: center;">
           <button id="refine-idea-btn" type="button" disabled style="padding: 12px 24px; font-size: 1rem; font-weight: 600; background: #2563eb; color: white; border: none; border-radius: 8px; cursor: pointer; transition: background 150ms ease;">
             아이디어 구체화
           </button>
@@ -79,6 +160,9 @@ if (!analysisData || Object.keys(analysisData).length === 0) {
       <section class="refined-ideas" id="refined-ideas" style="display: none;">
         <div class="section-header">
           <h2>3단계: 구체화된 아이디어</h2>
+          <p class="section-description">
+            2단계 챗봇과 나눈 대화 내용을 바탕으로, 아이디어를 보고서에 옮기기 좋게 자세히 정리해 두었어요.
+          </p>
         </div>
         <div id="refined-cards" class="refined-cards"></div>
         <div class="actions">
@@ -361,53 +445,52 @@ async function generateIdeas(apiKey, analysis, keywords) {
       ? keywords.join(', ')
       : '입력된 키워드 없음'
 
-  const prompt = `다음 명세서 정보와 학생이 입력한 키워드와 내용을 바탕으로 새로운 발명품 아이디어 3개를 제시해주세요. 해당 아이디어는 구체적으로 제시되어야 하며, 학생이 입력한 키워드와 내용이 잘 섞이도록 아이디어를 만들어 주세요.
+  const trizListText = buildTrizPromptText()
 
-명세서 정보:
+  const prompt = `당신은 중학생을 위한 발명 도우미입니다. 학생이 입력한 키워드 3개와 명세서 정보를 바탕으로, 아래 "TRIZ 발명 치트키 40"에서 가장 어울리는 기법을 선택해 그 원리를 실제로 적용한 새로운 발명 아이디어 3개를 만들어 주세요.
+
+[TRIZ 발명 치트키 40]
+${trizListText}
+
+[규칙]
+1. 아이디어 3개는 서로 다른 TRIZ 기법을 골라 적용해 주세요. (같은 기법 중복 금지)
+2. 각 아이디어는 학생이 입력한 키워드와 명세서의 특징/재료가 자연스럽게 녹아들어야 해요.
+3. 너무 추상적이지 않고, 중학생이 실제 만들거나 상상해볼 수 있을 정도로 구체적이어야 해요.
+4. 응답의 모든 한글 문장은 해요체("~예요", "~어요")로 통일해 주세요.
+
+[명세서 정보]
 - 특허 이름: ${analysis.patentName || '정보 없음'}
 - 출원 번호: ${analysis.applicationNumber || '정보 없음'}
 - 발명품의 특징: ${Array.isArray(analysis.features) ? analysis.features.join(', ') : analysis.features || '정보 없음'}
 - 발명품의 재료: ${Array.isArray(analysis.materials) ? analysis.materials.join(', ') : analysis.materials || '정보 없음'}
 
-학생이 입력한 키워드 3개:
+[학생이 입력한 키워드 3개]
 - ${keywordText}
 
-각 아이디어는 간단한 이름과 한 줄 설명, 그리고 프로토타입 스케치를 제공해주세요.
-학생이 입력한 키워드와 명세서의 특징/재료가 잘 섞이도록 아이디어를 만들어 주세요.
+[프로토타입 스케치 SVG 요구사항]
+- 시점: 평면도보다는 정면도나 대각선에서 본 모습 위주.
+- 표현: 매우 단순한 도형(직사각형, 원, 선, 삼각형, 타원 등)만 사용. 핵심 부위에는 짧은 <text> 라벨(예: '버튼', '입구')을 넣어도 좋아요. 검은색 선과 포인트 컬러 1~2개만 사용.
+- 크기: 200x150 (viewBox='0 0 200 150').
+- 손으로 그린 듯 단순하게.
 
-프로토타입 스케치는 SVG 코드로 작성해주세요. 중학교 학생이 쉽게 이해할 수 있도록 매우 간단하고 명확하게 그려주세요.
-
-프로토타입 그림 요구사항:
-- 시점(Perspective): 위에서 본 모습(평면도)보다는 앞에서 본 모습(정면도)이나 대각선에서 본 모습을 위주로 그려서 발명품의 전체적인 형태를 알 수 있게 해줘.
-- 표현 방식: 
-  - 매우 단순한 도형(직사각형, 원, 선, 삼각형, 타원 등)만 사용.
-  - 핵심 부위가 무엇인지 알 수 있도록 SVG 내부에 아주 짧은 텍스트(예: '버튼', '입구')를 <text> 태그로 추가해도 좋아.
-  - 검은색 선과 포인트 컬러 1~2개만 사용해.
-- 크기: 200x150 사이즈 준수.
-
-다음 JSON 형식으로 응답해주세요:
-
+[응답 형식 - 아래 JSON만 출력]
 {
   "ideas": [
     {
       "name": "아이디어 이름",
-      "description": "간단한 설명",
+      "description": "한두 문장으로 된 간단한 설명",
+      "trizPrinciple": {
+        "id": 1,
+        "name": "쪼개기 (분할)",
+        "applied": "이 발명에서 분할 원리가 어떻게 적용됐는지 한 문장으로 설명"
+      },
       "prototype": "<svg width='200' height='150' viewBox='0 0 200 150' xmlns='http://www.w3.org/2000/svg'>...</svg>"
     },
-    {
-      "name": "아이디어 이름",
-      "description": "간단한 설명",
-      "prototype": "<svg width='200' height='150' viewBox='0 0 200 150' xmlns='http://www.w3.org/2000/svg'>...</svg>"
-    },
-    {
-      "name": "아이디어 이름",
-      "description": "간단한 설명",
-      "prototype": "<svg width='200' height='150' viewBox='0 0 200 150' xmlns='http://www.w3.org/2000/svg'>...</svg>"
-    }
+    { "...": "위와 같은 형식으로 총 3개" }
   ]
 }
 
-프로토타입 SVG는 200x150 크기로, 발명품의 핵심 구조나 외형을 매우 간단한 선과 기본 도형(직사각형, 원, 삼각형, 별, 하트, 타원, 육각형, 원기둥)으로만 표현해주세요. 마치 초등학생이나 중학생이 손으로 그린 것처럼 단순하고 이해하기 쉽게 그려주세요.`
+trizPrinciple.id는 1~40 사이의 정수, name은 위 목록의 정확한 이름, applied는 그 기법을 이 아이디어에 어떻게 녹였는지 학생이 알아보기 쉽게 한 문장으로 써 주세요.`
 
   const response = await fetch(OPENAI_URL, {
     method: 'POST',
@@ -473,6 +556,28 @@ function parseKeywords(raw) {
   return { keywords: parts, error: null }
 }
 
+function renderTrizBadge(triz) {
+  if (!triz || (!triz.name && !triz.id)) return ''
+  const idNum = Number(triz.id)
+  const matched =
+    Number.isFinite(idNum) ? TRIZ_PRINCIPLES.find((p) => p.id === idNum) : null
+  const name = triz.name || matched?.name || ''
+  const idLabel = Number.isFinite(idNum) ? idNum : matched?.id || ''
+  const desc = matched?.desc || ''
+  const example = matched?.example || ''
+  const applied = triz.applied || ''
+  return `
+    <div class="idea-triz">
+      <div class="idea-triz-head">
+        ${idLabel !== '' ? `<span class="idea-triz-id">TRIZ ${sanitize(String(idLabel))}</span>` : ''}
+        <span class="idea-triz-name">${sanitize(name)}</span>
+      </div>
+      ${desc ? `<p class="idea-triz-desc">${sanitize(desc)}${example ? ` <span class="idea-triz-ex">(예: ${sanitize(example)})</span>` : ''}</p>` : ''}
+      ${applied ? `<p class="idea-triz-applied"><strong>이 아이디어에서는</strong> ${sanitize(applied)}</p>` : ''}
+    </div>
+  `
+}
+
 function displayIdeas(ideas) {
   if (!ideasContainer) return
 
@@ -500,12 +605,15 @@ function displayIdeas(ideas) {
             </div>`
         }
         
+        const trizHtml = renderTrizBadge(idea.trizPrinciple)
+
         return `
     <div class="idea-card" data-index="${index}">
       <div class="idea-header">
         <h3>${sanitize(idea.name)}</h3>
       </div>
       ${prototypeHtml}
+      ${trizHtml}
       <div class="idea-description">
         <p>${sanitize(idea.description)}</p>
       </div>
@@ -526,17 +634,21 @@ function displayIdeas(ideas) {
 
 function selectIdea(index, idea) {
   selectedIdeaIndex = index
+  const trizLine = idea.trizPrinciple?.name
+    ? `<p class="selected-idea-triz">적용된 TRIZ 기법: <strong>${sanitize(`${idea.trizPrinciple.id ?? ''} ${idea.trizPrinciple.name}`.trim())}</strong></p>`
+    : ''
   selectedIdeaEl.innerHTML = `
     <div class="selected-idea-content">
       <h3>선택한 아이디어: ${sanitize(idea.name)}</h3>
       <p>${sanitize(idea.description)}</p>
+      ${trizLine}
     </div>
   `
   chatSection.style.display = 'block'
   chatHistory = [
     {
       role: 'assistant',
-      content: `안녕하세요! "${idea.name}" 아이디어를 구체화하는 것을 도와줄께요! 질문해주세요!`,
+      content: `안녕하세요! "${idea.name}" 아이디어를 같이 구체화해 볼게요. 궁금한 점은 편하게 물어봐 주세요!`,
     },
   ]
   renderChatMessages()
@@ -580,10 +692,14 @@ function tryRestoreStudentIdeaSession() {
     const savedChat = Array.isArray(s.chatHistory) ? s.chatHistory : []
     if (selectedIdeaIndex >= 0 && savedChat.length > 0 && selectedIdeaEl && chatSection) {
       const idea = generatedIdeas[selectedIdeaIndex]
+      const trizLine = idea.trizPrinciple?.name
+        ? `<p class="selected-idea-triz">적용된 TRIZ 기법: <strong>${sanitize(`${idea.trizPrinciple.id ?? ''} ${idea.trizPrinciple.name}`.trim())}</strong></p>`
+        : ''
       selectedIdeaEl.innerHTML = `
         <div class="selected-idea-content">
           <h3>선택한 아이디어: ${sanitize(idea.name)}</h3>
           <p>${sanitize(idea.description)}</p>
+          ${trizLine}
         </div>
       `
       chatSection.style.display = 'block'
@@ -702,12 +818,17 @@ async function sendMessage() {
 }
 
 async function chatWithAI(apiKey, idea, message, history, currentTurn) {
-  let systemPrompt = `당신은 발명 도우미 역할을 하는 교사입니다. 
-학생이 선택한 아이디어 "${idea.name}" (${idea.description})를 이해하고 발전시키도록 도와주세요.
+  const trizContext = idea.trizPrinciple?.name
+    ? `\n이 아이디어는 TRIZ 발명 기법 "${idea.trizPrinciple.id ?? ''} ${idea.trizPrinciple.name}"을(를) 적용해 만들어졌어요. 적용 방식: ${idea.trizPrinciple.applied || '명시되지 않음'}\n학생이 이 원리를 이해하면서 아이디어를 구체화하도록 자연스럽게 연결해 답변해 주세요.`
+    : ''
 
-항상 교사가 학생에게 설명하듯이, 존댓말로 친절하고 차분하게 말해 주세요. 무엇보다 학생이 중학생이기에 쉬운 용어를 사용해야해요.
-학생이 방금 한 질문에 대해 먼저 직접적인 답을 해 주고,
-필요한 경우에만 짧게 예시나 추가 설명을 덧붙여 주세요.
+  let systemPrompt = `당신은 발명 도우미 역할을 하는 교사입니다.
+학생이 선택한 아이디어 "${idea.name}" (${idea.description})를 이해하고 발전시키도록 도와주세요.${trizContext}
+
+말투는 반드시 해요체로 통일해 주세요. 문장은 가능한 한 '~요', '~예요', '~어요', '~죠', '~네요'처럼 부드럽게 끝내고,
+'~합니다', '~됩니다'처럼 딱딱한 보고서체·하오체 느낌은 피해 주세요.
+친근하고 따뜻하게, 중학생도 이해하기 쉬운 단어로 설명해 주세요.
+학생이 방금 한 질문에는 먼저 직접 답해 주고, 필요할 때만 짧은 예시나 덧붙임을 넣어 주세요.
 
 `
 
@@ -724,7 +845,7 @@ async function chatWithAI(apiKey, idea, message, history, currentTurn) {
 - 사용 시 주의해야 할 점이나 유의사항 정리
 
 학생이 이 답변만 보고도 보고서에 옮겨 적을 수 있을 정도로
-차례대로, 읽기 쉽게 정리해 주세요.`
+차례대로, 읽기 쉽게 정리해 주세요. 이때도 말투는 해요체로 유지해 주세요.`
   }
 
   // 대화 이력을 텍스트로 구성
@@ -794,22 +915,33 @@ async function refineIdea(apiKey, idea, history) {
     .filter(Boolean)
     .join('\n')
 
-  const prompt = `다음 대화 내용을 바탕으로 "${idea.name}" 아이디어를 구체화한 내용을 정리해주세요.
+  const prompt = `다음은 학생과 발명 도우미(챗봇)가 나눈 전체 대화입니다. 이 대화만이 아니라, 대화 속에 흩어진 설명·예시·정정 내용까지 모두 읽고 "${idea.name}" 아이디어를 한 번에 이해할 수 있도록 아주 구체적으로 정리해 주세요.
 
-대화 내용:
+원래 아이디어 요약: ${idea.description}
+
+대화 전문:
 ${conversationText}
 
-중요: 대화 내용에서 직접 언급된 정보만 사용하고, 대화에서 찾을 수 없는 정보는 "*제안*"이라는 표시를 앞에 붙여서 제안으로 제시해주세요.
+규칙:
+- 학생 질문과 도우미 답변에 실제로 나온 내용을 최대한 빠짐없이 반영하세요. 한쪽 말만이 아니라, 질문과 답이 이어지며 좁혀진 내용도 포함하세요.
+- 대화에 없는 내용은 추측으로 채우지 말고, 꼭 필요하면 앞에 *제안*을 붙이세요.
+- 문장은 해요체로 통일해 주세요.
+- 각 필드는 짧게 끊지 말고, 보고서에 복사해 쓸 수 있을 만큼 충분히 길고 구체적으로 쓰세요.
 
-다음 JSON 형식으로 응답해주세요:
+다음 JSON만 출력하세요:
 {
-  "name": "아이디어 이름",
-  "description": "아이디어에 대한 전체 설명 (대화에서 찾을 수 없으면 *제안* 표시)",
-  "features": ["특징1 (대화에서 찾을 수 없으면 *제안* 표시)", "특징2"],
-  "materials": ["준비물1 (대화에서 찾을 수 없으면 *제안* 표시)", "준비물2"],
-  "tools": ["필요한 도구1 (대화에서 찾을 수 없으면 *제안* 표시)", "필요한 도구2"],
-  "manufacturing": "제작 방법 설명 (대화에서 찾을 수 없으면 *제안* 표시)",
-  "notes": "유의사항 (대화에서 찾을 수 없으면 *제안* 표시)"
+  "name": "아이디어 이름 (대화에서 정해진 이름이 있으면 그대로)",
+  "chatSummary": "챗봇 대화에서 나온 핵심만 5문장 이상으로 요약 (질문·답변에서 다룬 주제, 결정된 점, 도우미가 강조한 점 포함)",
+  "description": "이 아이디어가 무엇인지, 누구를 위한 것인지, 어떤 문제를 어떻게 푸는지까지 서술형으로 상세히 (대화에 나온 표현·수치·재료명 등 구체적으로)",
+  "structureOrPrinciple": "모양·구성·작동 원리나 구조 (대화에 없으면 빈 문자열로)",
+  "features": ["특징 4개 이상, 대화에 근거해 구체적으로"],
+  "howToUse": "실제로 쓰는 방법을 단계나 상황별로 자세히",
+  "materials": ["준비물, 대화·제안 구분 규칙 동일"],
+  "tools": ["필요한 도구"],
+  "manufacturingSteps": ["제작 1단계", "2단계", "3단계", "… 대화에 나온 순서대로, 가능한 한 세분화"],
+  "manufacturing": "제작 전체를 한 번 더 설명 (단계와 겹치면 보충만)",
+  "expectedEffect": "기대 효과·장점 (대화 기반, 없으면 빈 문자열로)",
+  "notes": "유의사항·한계·안전 (대화 기반)"
 }`
 
   const response = await fetch(OPENAI_URL, {
@@ -873,39 +1005,27 @@ function displayRefinedIdeas(refined) {
   if (!refinedCards) return
 
   refinedCards.innerHTML = refined
-    .map(
-      (idea) => `
+    .map((idea) => {
+      const sections = collectRefinedSections(idea, sanitize)
+      const body =
+        sections.length > 0
+          ? sections
+              .map(
+                (s) => `
+        <div class="refined-section">
+          <h4>${sanitize(s.title)}</h4>
+          <div class="refined-section-body">${s.html}</div>
+        </div>`
+              )
+              .join('')
+          : `<p class="refined-empty">표시할 구체화 내용이 없습니다. 아이디어 구체화를 다시 실행해 보세요.</p>`
+      return `
     <article class="refined-card">
       <h3>${sanitize(idea.name)}</h3>
-      <div class="refined-content">
-        <div class="refined-section">
-          <h4>아이디어 설명</h4>
-          <p>${sanitize(idea.description || '')}</p>
-        </div>
-        <div class="refined-section">
-          <h4>특징</h4>
-          <ul>${(Array.isArray(idea.features) ? idea.features : [idea.features || '']).map((f) => `<li>${sanitize(f)}</li>`).join('')}</ul>
-        </div>
-        <div class="refined-section">
-          <h4>준비물</h4>
-          <ul>${(Array.isArray(idea.materials) ? idea.materials : [idea.materials || '']).map((m) => `<li>${sanitize(m)}</li>`).join('')}</ul>
-        </div>
-        <div class="refined-section">
-          <h4>필요한 도구</h4>
-          <ul>${(Array.isArray(idea.tools) ? idea.tools : [idea.tools || '']).map((t) => `<li>${sanitize(t)}</li>`).join('')}</ul>
-        </div>
-        <div class="refined-section">
-          <h4>제작 방법</h4>
-          <p>${sanitize(idea.manufacturing || '')}</p>
-        </div>
-        <div class="refined-section">
-          <h4>유의사항</h4>
-          <p>${sanitize(idea.notes || '')}</p>
-        </div>
-      </div>
+      <div class="refined-content">${body}</div>
     </article>
   `
-    )
+    })
     .join('')
 
   refinedIdeasSection.style.display = 'block'
@@ -918,7 +1038,7 @@ function renderChatMessages() {
     .map(
       (msg) => `
     <div class="chat-message ${msg.role}">
-      <div class="message-content">${sanitize(msg.content).replace(/\n/g, '<br>')}</div>
+      <div class="message-content">${sanitize(stripMarkdownBoldMarkers(msg.content)).replace(/\n/g, '<br>')}</div>
     </div>
   `
     )
@@ -945,6 +1065,16 @@ async function generateChatPdf(idea, history) {
         <p style="font-size: 14px; line-height: 1.6; margin-left: 10px;">${sanitize(idea.description || '정보 없음')}</p>
       </div>
 
+      ${
+        idea.trizPrinciple?.name
+          ? `<div style="margin-bottom: 30px;">
+              <h2 style="font-size: 18px; font-weight: bold; margin-bottom: 10px; color: #475569;">적용된 TRIZ 발명 기법</h2>
+              <p style="font-size: 14px; line-height: 1.6; margin-left: 10px;"><strong>${sanitize(`${idea.trizPrinciple.id ?? ''} ${idea.trizPrinciple.name}`.trim())}</strong></p>
+              ${idea.trizPrinciple.applied ? `<p style="font-size: 13px; line-height: 1.6; margin-left: 10px; color:#475569;">적용 방식: ${sanitize(idea.trizPrinciple.applied)}</p>` : ''}
+            </div>`
+          : ''
+      }
+
       <div style="margin-top: 30px; border-top: 2px solid #e2e8f0; padding-top: 20px;">
         <h2 style="font-size: 18px; font-weight: bold; margin-bottom: 20px; color: #475569;">대화 내용</h2>
         ${history
@@ -957,7 +1087,7 @@ async function generateChatPdf(idea, history) {
                 ${role}:
               </div>
               <div style="font-size: 13px; line-height: 1.8; color: #0f172a; white-space: pre-wrap; margin-left: 10px;">
-                ${sanitize(msg.content || '').replace(/\n/g, '<br>')}
+                ${sanitize(stripMarkdownBoldMarkers(msg.content || '')).replace(/\n/g, '<br>')}
               </div>
             </div>
           `
@@ -1028,39 +1158,29 @@ async function generateResultPdf(refined) {
         구체화된 발명 아이디어
       </h1>
       ${refined
-        .map(
-          (idea, index) => `
+        .map((idea, index) => {
+          const sections = collectRefinedSections(idea, sanitize)
+          const blocks =
+            sections.length > 0
+              ? sections
+                  .map(
+                    (s) => `
+          <div style="margin-bottom: 18px;">
+            <h3 style="font-size: 16px; font-weight: bold; margin-bottom: 8px; color: #475569;">${sanitize(s.title)}</h3>
+            <div style="font-size: 14px; line-height: 1.75; margin-left: 10px;">${s.html}</div>
+          </div>`
+                  )
+                  .join('')
+              : `<p style="font-size: 14px; margin-left: 10px;">${sanitize('구체화 내용을 불러올 수 없습니다.')}</p>`
+          return `
         <div style="margin-bottom: ${index < refined.length - 1 ? '40px' : '0'}; padding-bottom: ${index < refined.length - 1 ? '30px' : '0'}; border-bottom: ${index < refined.length - 1 ? '2px solid #e2e8f0' : 'none'};">
           <h2 style="font-size: 20px; font-weight: bold; margin-bottom: 20px; color: #0f172a;">
             ${index + 1}. ${sanitize(idea.name)}
           </h2>
-
-          <div style="margin-bottom: 20px;">
-            <h3 style="font-size: 16px; font-weight: bold; margin-bottom: 8px; color: #475569;">아이디어 설명</h3>
-            <p style="font-size: 14px; line-height: 1.7; margin-left: 10px;">${sanitize(idea.description || '정보 없음')}</p>
-          </div>
-
-          <div style="margin-bottom: 20px;">
-            <h3 style="font-size: 16px; font-weight: bold; margin-bottom: 8px; color: #475569;">특징</h3>
-            <ul style="font-size: 14px; line-height: 1.7; margin-left: 10px; padding-left: 20px;">
-              ${(Array.isArray(idea.features) ? idea.features : [idea.features])
-                .map((f) => `<li>${sanitize(f)}</li>`)
-                .join('')}
-            </ul>
-          </div>
-
-          <div style="margin-bottom: 20px;">
-            <h3 style="font-size: 16px; font-weight: bold; margin-bottom: 8px; color: #475569;">제작 방법</h3>
-            <p style="font-size: 14px; line-height: 1.7; margin-left: 10px; white-space: pre-wrap;">${sanitize(idea.manufacturing || '정보 없음').replace(/\n/g, '<br>')}</p>
-          </div>
-
-          <div style="margin-bottom: 0;">
-            <h3 style="font-size: 16px; font-weight: bold; margin-bottom: 8px; color: #475569;">유의사항</h3>
-            <p style="font-size: 14px; line-height: 1.7; margin-left: 10px; white-space: pre-wrap;">${sanitize(idea.notes || '정보 없음').replace(/\n/g, '<br>')}</p>
-          </div>
+          ${blocks}
         </div>
       `
-        )
+        })
         .join('')}
     </div>
   `

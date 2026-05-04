@@ -1,4 +1,5 @@
 import './teacher.css'
+import { collectRefinedSections } from './refinedIdeaSections.js'
 import { initFirebase } from './firebaseConfig.js'
 import { getFirestore, collection, getDocs, query, orderBy } from 'firebase/firestore'
 import { onAuthStateChanged, signInWithPopup, signOut } from 'firebase/auth'
@@ -547,6 +548,30 @@ function showActivityDetailModal(activity) {
     `
   } else if (type === 'idea') {
     const { keywords, generatedIdeas, selectedIdea, chatHistory, refinedIdea } = data || {}
+    let refinedIdeaHtml = ''
+    if (refinedIdea) {
+      if (typeof refinedIdea === 'string') {
+        refinedIdeaHtml = `<p style="white-space: pre-wrap;">${sanitize(refinedIdea)}</p>`
+      } else {
+        const sections = collectRefinedSections(refinedIdea, sanitize)
+        const nameLine = refinedIdea.name
+          ? `<p><strong>이름:</strong> ${sanitize(refinedIdea.name)}</p>`
+          : ''
+        const sectionBlocks =
+          sections.length > 0
+            ? sections
+                .map(
+                  (s) => `
+              <div style="margin-bottom: 14px;">
+                <p><strong>${sanitize(s.title)}</strong></p>
+                <div style="padding-left: 12px; line-height: 1.65;">${s.html}</div>
+              </div>`
+                )
+                .join('')
+            : '<p>구체화 필드가 비어 있습니다.</p>'
+        refinedIdeaHtml = `<div style="padding: 15px; background: #f0fdf4; border-radius: 8px;">${nameLine}${sectionBlocks}</div>`
+      }
+    }
     detailHtml = `
       <h3>아이디어 창출</h3>
       <p><strong>작성일:</strong> ${date}</p>
@@ -577,18 +602,7 @@ function showActivityDetailModal(activity) {
       ${refinedIdea ? `
         <div style="margin-top: 20px;">
           <p><strong>구체화된 아이디어:</strong></p>
-          ${typeof refinedIdea === 'string' 
-            ? `<p style="white-space: pre-wrap;">${sanitize(refinedIdea)}</p>`
-            : `
-              <div style="padding: 15px; background: #f0fdf4; border-radius: 8px;">
-                ${refinedIdea.description ? `<p><strong>아이디어 설명:</strong> ${sanitize(refinedIdea.description)}</p>` : ''}
-                ${refinedIdea.features ? `<p><strong>특징:</strong> ${Array.isArray(refinedIdea.features) ? refinedIdea.features.map(f => sanitize(f)).join(', ') : sanitize(refinedIdea.features)}</p>` : ''}
-                ${refinedIdea.materials ? `<p><strong>준비물:</strong> ${Array.isArray(refinedIdea.materials) ? refinedIdea.materials.map(m => sanitize(m)).join(', ') : sanitize(refinedIdea.materials)}</p>` : ''}
-                ${refinedIdea.tools ? `<p><strong>필요한 도구:</strong> ${Array.isArray(refinedIdea.tools) ? refinedIdea.tools.map(t => sanitize(t)).join(', ') : sanitize(refinedIdea.tools)}</p>` : ''}
-                ${refinedIdea.manufacturing ? `<p><strong>제작방법:</strong> ${sanitize(refinedIdea.manufacturing)}</p>` : ''}
-                ${refinedIdea.notes ? `<p><strong>유의사항:</strong> ${sanitize(refinedIdea.notes)}</p>` : ''}
-              </div>
-            `}
+          ${refinedIdeaHtml}
         </div>
       ` : ''}
     `

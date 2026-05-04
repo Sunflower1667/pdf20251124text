@@ -1,7 +1,13 @@
 // 학생 활동 통합 관리 모듈
 import { jsPDF } from 'jspdf'
 import html2canvas from 'html2canvas'
-import { getRecentActivities, getStudentActivities, getRecentActivitiesByStudentId } from './activityStorage.js'
+import { collectRefinedSections } from './refinedIdeaSections.js'
+import {
+  getRecentActivities,
+  getStudentActivitiesTimeline,
+  getRecentActivitiesByStudentId,
+} from './activityStorage.js'
+import { requestChildWorkbenchFlush } from './workbenchFlush.js'
 
 /**
  * 3개 활동을 통합한 PDF 생성
@@ -193,6 +199,31 @@ function generateIdeaSection(ideaData) {
 
   const { name, description, chatHistory, refinedIdea, selectedIdea, ideas } = ideaData
 
+  let refinedInner = ''
+  if (refinedIdea) {
+    if (typeof refinedIdea === 'string') {
+      refinedInner = `<div style="white-space: pre-wrap;">${sanitize(refinedIdea)}</div>`
+    } else {
+      const sections = collectRefinedSections(refinedIdea, sanitize)
+      const nameLine = refinedIdea.name
+        ? `<div style="margin-bottom: 15px;"><strong>아이디어 이름:</strong> ${sanitize(refinedIdea.name)}</div>`
+        : ''
+      refinedInner =
+        nameLine +
+        (sections.length > 0
+          ? sections
+              .map(
+                (s) => `
+              <div style="margin-bottom: 15px;">
+                <strong>${sanitize(s.title)}</strong>
+                <div style="margin-top: 6px; line-height: 1.7;">${s.html}</div>
+              </div>`
+              )
+              .join('')
+          : '')
+    }
+  }
+
   return `
     <div style="margin-bottom: 50px; padding: 30px; background: #f0fdf4; border-radius: 12px; border-left: 4px solid #22c55e;">
       <h2 style="font-size: 22px; font-weight: bold; margin-bottom: 25px; color: #22c55e;">
@@ -229,17 +260,7 @@ function generateIdeaSection(ideaData) {
       <div style="margin-top: 20px;">
         <h3 style="font-size: 16px; font-weight: bold; margin-bottom: 8px; color: #475569;">구체화된 아이디어</h3>
         <div style="font-size: 14px; line-height: 1.8; margin-left: 10px; padding: 15px; background: white; border-radius: 8px;">
-          ${typeof refinedIdea === 'string' 
-            ? `<div style="white-space: pre-wrap;">${sanitize(refinedIdea)}</div>`
-            : `
-              ${refinedIdea.name ? `<div style="margin-bottom: 15px;"><strong>아이디어 이름:</strong> ${sanitize(refinedIdea.name)}</div>` : ''}
-              ${refinedIdea.description ? `<div style="margin-bottom: 15px;"><strong>아이디어 설명:</strong><div style="white-space: pre-wrap; margin-top: 5px;">${sanitize(refinedIdea.description)}</div></div>` : ''}
-              ${refinedIdea.features ? `<div style="margin-bottom: 15px;"><strong>특징:</strong><ul style="margin-top: 5px; padding-left: 20px;">${(Array.isArray(refinedIdea.features) ? refinedIdea.features : [refinedIdea.features]).map(f => `<li>${sanitize(f)}</li>`).join('')}</ul></div>` : ''}
-              ${refinedIdea.materials ? `<div style="margin-bottom: 15px;"><strong>준비물:</strong><ul style="margin-top: 5px; padding-left: 20px;">${(Array.isArray(refinedIdea.materials) ? refinedIdea.materials : [refinedIdea.materials]).map(m => `<li>${sanitize(m)}</li>`).join('')}</ul></div>` : ''}
-              ${refinedIdea.tools ? `<div style="margin-bottom: 15px;"><strong>필요한 도구:</strong><ul style="margin-top: 5px; padding-left: 20px;">${(Array.isArray(refinedIdea.tools) ? refinedIdea.tools : [refinedIdea.tools]).map(t => `<li>${sanitize(t)}</li>`).join('')}</ul></div>` : ''}
-              ${refinedIdea.manufacturing ? `<div style="margin-bottom: 15px;"><strong>제작 방법:</strong><div style="white-space: pre-wrap; margin-top: 5px;">${sanitize(refinedIdea.manufacturing)}</div></div>` : ''}
-              ${refinedIdea.notes ? `<div style="margin-bottom: 15px;"><strong>유의사항:</strong><div style="white-space: pre-wrap; margin-top: 5px;">${sanitize(refinedIdea.notes)}</div></div>` : ''}
-            `}
+          ${refinedInner}
         </div>
       </div>
       ` : ''}
@@ -281,8 +302,7 @@ function sanitize(value) {
  */
 export async function loadPastActivities() {
   try {
-    const activities = await getStudentActivities(100)
-    return activities
+    return await getStudentActivitiesTimeline(100)
   } catch (error) {
     console.error('과거 활동 로드 오류:', error)
     return []
@@ -362,7 +382,12 @@ export function hasPastActivityOpenableContent(activity) {
       return !!(data.image && typeof data.image === 'string' && data.image.startsWith('data:'))
     case 'reflection': {
       const d = data
-      return !!(d.reflection && String(d.reflection).trim()) || !!(d.feedback && String(d.feedback).trim())
+      return (
+        !!(d.reflection && String(d.reflection).trim()) ||
+        !!(d.feedback && String(d.feedback).trim()) ||
+        !!(d.emotion && String(d.emotion).trim()) ||
+        !!(d.growth && String(d.growth).trim())
+      )
     }
     case 'invention_spec':
       return Object.values(data).some((v) => {
@@ -571,7 +596,16 @@ export async function persistLocalWorkbenchToFirebase() {
     if (rawInv) {
       const data = JSON.parse(rawInv)
       if (data && typeof data === 'object' && Object.keys(data).length > 0) {
-        await saveStudentActivity('invention_spec', data)
+        let drawingImage = ''
+        try {
+          const img = localStorage.getItem(DRAWING_RESTORE_KEY)
+          if (typeof img === 'string' && img.startsWith('data:image/')) drawingImage = img
+        } catch (_) {}
+        await saveStudentActivity('invention_spec', {
+          ...data,
+          drawingImage,
+          timestamp: new Date().toISOString(),
+        })
       }
     }
   } catch (e) {
@@ -580,11 +614,37 @@ export async function persistLocalWorkbenchToFirebase() {
 }
 
 /**
+ * 대시보드 [저장하기]: 현재 iframe 내용을 localStorage에 반영한 뒤, 분석·아이디어·그림·발명 명세서를 Firebase에 저장합니다.
+ * @param {Window | null | undefined} iframeWindow — `#activity-frame`의 contentWindow
+ */
+export async function saveStudentWorkbenchToCloud(iframeWindow) {
+  await requestChildWorkbenchFlush(iframeWindow)
+  await persistLocalWorkbenchToFirebase()
+}
+
+/**
  * 최종 활동 보고서 PDF 생성 (reflection 포함)
  * @param {object} [options]
  * @param {{ reflection?: string; feedback?: string }} [options.reflectionOverride] iframe에서 방금 저장한 소감·피드백(재조회 레이스 방지)
  */
+let _generateFinalPdfInFlight = null
+
 export async function generateFinalPdf(options = {}) {
+  if (_generateFinalPdfInFlight) {
+    console.warn('[generateFinalPdf] 이미 진행 중인 PDF 생성이 있어 중복 호출을 무시합니다.')
+    return _generateFinalPdfInFlight
+  }
+  _generateFinalPdfInFlight = (async () => {
+    try {
+      return await _generateFinalPdfImpl(options)
+    } finally {
+      _generateFinalPdfInFlight = null
+    }
+  })()
+  return _generateFinalPdfInFlight
+}
+
+async function _generateFinalPdfImpl(options = {}) {
   try {
     const activities = await getRecentActivities()
 
@@ -834,14 +894,40 @@ export async function generateFinalPdf(options = {}) {
 function generateReflectionSection(reflectionData) {
   if (!reflectionData) return ''
 
-  const { reflection, feedback } = reflectionData
+  const {
+    reflection,
+    feedback,
+    emotionIcon,
+    emotionLabel,
+    growthIcon,
+    growthLabel,
+  } = reflectionData
+
+  const moodHtml = (emotionLabel || growthLabel)
+    ? `
+      <div style="display: flex; gap: 12px; margin-bottom: 20px; flex-wrap: wrap;">
+        ${emotionLabel ? `
+        <div style="flex: 1; min-width: 200px; padding: 14px 16px; background: #fef3c7; border-radius: 10px; border-left: 4px solid #f59e0b;">
+          <div style="font-size: 12px; color: #92400e; font-weight: 700; margin-bottom: 4px;">오늘의 감정</div>
+          <div style="font-size: 16px; font-weight: 700; color: #0f172a;">${sanitize(emotionIcon || '')} ${sanitize(emotionLabel)}</div>
+        </div>` : ''}
+        ${growthLabel ? `
+        <div style="flex: 1; min-width: 200px; padding: 14px 16px; background: #dcfce7; border-radius: 10px; border-left: 4px solid #16a34a;">
+          <div style="font-size: 12px; color: #166534; font-weight: 700; margin-bottom: 4px;">오늘의 성장</div>
+          <div style="font-size: 16px; font-weight: 700; color: #0f172a;">${sanitize(growthIcon || '')} ${sanitize(growthLabel)}</div>
+        </div>` : ''}
+      </div>
+    `
+    : ''
 
   return `
     <div style="margin-bottom: 30px; padding: 30px; background: #fefce8; border-radius: 12px; border-left: 4px solid #eab308;">
       <h2 style="font-size: 22px; font-weight: bold; margin-bottom: 25px; color: #eab308;">
         4. 오늘 활동 소감
       </h2>
-      
+
+      ${moodHtml}
+
       ${reflection ? `
       <div style="margin-bottom: ${feedback ? '25px' : '0'};">
         <h3 style="font-size: 16px; font-weight: bold; margin-bottom: 8px; color: #475569;">학생 소감</h3>

@@ -2,6 +2,28 @@ import './drawing.css'
 import { saveStudentActivity } from './activityStorage.js'
 import { listenForWorkbenchFlushRequest } from './workbenchFlush.js'
 
+const DEFAULT_OPENAI_CHAT = 'https://api.openai.com/v1/chat/completions'
+
+function resolveOpenAiChatCompletionsUrl() {
+  const u = (import.meta.env.VITE_OPENAI_API_URL || '').trim()
+  if (!u) return DEFAULT_OPENAI_CHAT
+  if (u.includes('/chat/completions')) return u
+  const noTrail = u.replace(/\/$/, '')
+  if (noTrail.endsWith('/responses')) {
+    return `${noTrail.slice(0, -'/responses'.length)}/chat/completions`
+  }
+  if (noTrail.endsWith('/v1')) return `${noTrail}/chat/completions`
+  return DEFAULT_OPENAI_CHAT
+}
+
+const VISION_MODEL =
+  (import.meta.env.VITE_OPENAI_VISION_MODEL || '').trim() ||
+  (import.meta.env.VITE_OPENAI_MODEL || '').trim() ||
+  'gpt-4o-mini'
+
+const COACH_ANALYZE_PROMPT =
+  '이 그림을 발명품 도면으로 봤을 때, 다른 사람이 이해하거나 만들어 보기에 부족한 점을 항목으로 나눠 알려줘. (비난 없이 격려하는 존댓말로)'
+
 const app = document.querySelector('#app')
 
 app.innerHTML = `
@@ -11,6 +33,8 @@ app.innerHTML = `
       <p class="subtitle">만들고 싶은 발명품을 직접 그려보세요!</p>
     </header>
 
+    <div class="drawing-layout">
+    <div class="drawing-main">
     <section class="drawing-section">
       <div class="drawing-tools">
         <div class="tool-group">
@@ -63,6 +87,32 @@ app.innerHTML = `
         <button id="download-drawing-btn" type="button">그림 다운로드</button>
       </div>
     </section>
+    </div>
+
+    <aside class="drawing-coach" aria-label="그림 도우미">
+      <div class="drawing-coach-head">
+        <h2>그림 도우미</h2>
+        <p class="drawing-coach-lead">
+          여러분이 그린 도면이 발명품을 이해하고 설명하기에 충분한지 확인해봅시다. 여러분이 어려워하는 부분, 놓친 부분을 알려줄께요
+        </p>
+      </div>
+      <div id="drawing-coach-messages" class="drawing-coach-messages" role="log" aria-live="polite"></div>
+      <div class="drawing-coach-actions">
+        <button type="button" id="drawing-coach-analyze-btn" class="drawing-coach-primary-btn">
+          나의 그림 확인하기
+        </button>
+      </div>
+      <div class="drawing-coach-compose">
+        <label class="sr-only" for="drawing-coach-input">도우미에게 질문하기</label>
+        <textarea
+          id="drawing-coach-input"
+          rows="3"
+          placeholder="여기에 궁금한 질문을 입력해주세요. 예: 숫자로 부품 번호를 달면 좋을까요? 비율이나 크기가 괜찮을까요?"
+        ></textarea>
+        <button type="button" id="drawing-coach-send-btn" class="drawing-coach-send-btn">질문 보내기</button>
+      </div>
+    </aside>
+    </div>
   </div>
 `
 
@@ -82,6 +132,14 @@ const downloadDrawingBtn = document.querySelector('#download-drawing-btn')
 const allowTouchDrawingInput = document.querySelector('#allow-touch-drawing')
 const colorPresets = document.querySelectorAll('.color-preset')
 const toolButtons = document.querySelectorAll('.tool-btn[data-tool]')
+const coachMessagesEl = document.getElementById('drawing-coach-messages')
+const coachAnalyzeBtn = document.getElementById('drawing-coach-analyze-btn')
+const coachSendBtn = document.getElementById('drawing-coach-send-btn')
+const coachInput = document.getElementById('drawing-coach-input')
+
+/** @type {{ role: 'user' | 'assistant'; text: string; hideInUi?: boolean }[]} */
+let coachThread = []
+let coachBusy = false
 
 let isDrawing = false
 let activePointerId = null
@@ -390,6 +448,214 @@ canvas.addEventListener('pointerleave', (e) => {
     cursorPreview.style.display = 'none'
   }
 })
+
+function escapeHtmlCoach(s) {
+  const d = document.createElement('div')
+  d.textContent = s
+  return d.innerHTML
+}
+
+/** 답변에 남는 마크다운 굵게 표기(**) 제거 */
+function stripCoachBoldMarkers(s) {
+  return s.replace(/\*\*([^*]*)\*\*/g, '$1').replace(/\*\*/g, '')
+}
+
+function isCanvasEffectivelyBlank() {
+  if (!canvas?.width || !canvas?.height) return true
+  const w = canvas.width
+  const h = canvas.height
+  const step = Math.max(2, Math.floor(Math.min(w, h) / 40))
+  let data
+  try {
+    data = ctx.getImageData(0, 0, w, h).data
+  } catch {
+    return false
+  }
+  for (let y = 0; y < h; y += step) {
+    for (let x = 0; x < w; x += step) {
+      const i = (Math.floor(y) * w + Math.floor(x)) * 4
+      const r = data[i]
+      const g = data[i + 1]
+      const b = data[i + 2]
+      const a = data[i + 3]
+      if (a < 240) return false
+      if (r < 248 || g < 248 || b < 248) return false
+    }
+  }
+  return true
+}
+
+function downscaleDataUrlIfNeeded(dataUrl, maxSide = 1280) {
+  return new Promise((resolve) => {
+    const img = new Image()
+    img.onload = () => {
+      let { width, height } = img
+      if (width <= maxSide && height <= maxSide) {
+        resolve(dataUrl)
+        return
+      }
+      const scale = maxSide / Math.max(width, height)
+      const nw = Math.round(width * scale)
+      const nh = Math.round(height * scale)
+      const c = document.createElement('canvas')
+      c.width = nw
+      c.height = nh
+      const cctx = c.getContext('2d')
+      if (!cctx) {
+        resolve(dataUrl)
+        return
+      }
+      cctx.drawImage(img, 0, 0, nw, nh)
+      resolve(c.toDataURL('image/png'))
+    }
+    img.onerror = () => resolve(dataUrl)
+    img.src = dataUrl
+  })
+}
+
+function extractChatCompletionText(data) {
+  const c = data?.choices?.[0]?.message?.content
+  if (typeof c === 'string') return c
+  if (Array.isArray(c)) {
+    return c
+      .map((p) => {
+        if (typeof p === 'string') return p
+        if (p?.type === 'text' && p.text) return p.text
+        return ''
+      })
+      .join('')
+  }
+  return ''
+}
+
+function renderCoachMessages() {
+  if (!coachMessagesEl) return
+  if (coachThread.length === 0) {
+    coachMessagesEl.innerHTML = ''
+    return
+  }
+  coachMessagesEl.innerHTML = coachThread
+    .filter((m) => !m.hideInUi)
+    .map((m) => {
+      const cls =
+        m.role === 'user'
+          ? 'drawing-coach-msg drawing-coach-msg--user'
+          : 'drawing-coach-msg drawing-coach-msg--assistant'
+      const raw = m.role === 'assistant' ? stripCoachBoldMarkers(m.text) : m.text
+      return `<div class="${cls}">${escapeHtmlCoach(raw)}</div>`
+    })
+    .join('')
+  coachMessagesEl.scrollTop = coachMessagesEl.scrollHeight
+}
+
+function setCoachBusy(busy) {
+  coachBusy = busy
+  if (coachAnalyzeBtn) coachAnalyzeBtn.disabled = busy
+  if (coachSendBtn) coachSendBtn.disabled = busy
+}
+
+async function requestDrawingCoachReply(userText) {
+  const apiKey = (import.meta.env.VITE_OPENAI_API_KEY || '').trim()
+  if (!apiKey) {
+    throw new Error('NO_API_KEY')
+  }
+
+  const rawUrl = canvas.toDataURL('image/png')
+  const imageUrl = await downscaleDataUrlIfNeeded(rawUrl, 1280)
+
+  const url = resolveOpenAiChatCompletionsUrl()
+  const system =
+    '너는 중학교 발명 교육을 돕는 도우미다. 학생이 그린 발명품 스케치·도면을 보고, 아이디어를 전달·발표·제작할 때 부족할 수 있는 점을 구체적으로 알려준다. ' +
+    '부품 이름·번호, 비율, 동작 방향, 재료, 단면·확대, 전체와의 관계 등을 예시로 들 수 있다. 비난하지 않고 격려하며 한국어 존댓말로 답한다.'
+    '해당 내용 중 발명과 관련없는 내용은 설명하거나 말하지 않는다.'
+
+  const messages = [{ role: 'system', content: system }]
+  for (const turn of coachThread) {
+    messages.push({ role: turn.role, content: turn.text })
+  }
+  messages.push({
+    role: 'user',
+    content: [
+      { type: 'text', text: userText },
+      { type: 'image_url', image_url: { url: imageUrl } },
+    ],
+  })
+
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
+      model: VISION_MODEL,
+      messages,
+      max_tokens: 1400,
+      temperature: 0.55,
+    }),
+  })
+
+  if (!res.ok) {
+    const errText = await res.text().catch(() => '')
+    throw new Error(`API 오류 (${res.status}): ${errText.slice(0, 280)}`)
+  }
+
+  const data = await res.json()
+  const out = extractChatCompletionText(data)
+  if (!out.trim()) throw new Error('도우미 응답을 읽지 못했습니다.')
+  return out.trim()
+}
+
+/**
+ * @param {string} userText
+ * @param {{ hideUserMessage?: boolean }} [opts]
+ */
+async function runCoachTurn(userText, opts = {}) {
+  if (!userText.trim() || coachBusy) return
+  if (isCanvasEffectivelyBlank()) {
+    alert('먼저 캔버스에 발명품을 그리거나 이미지를 올린 뒤 조언을 받아 보세요.')
+    return
+  }
+
+  setCoachBusy(true)
+  try {
+    const reply = await requestDrawingCoachReply(userText.trim())
+    const userEntry = { role: 'user', text: userText.trim() }
+    if (opts.hideUserMessage) userEntry.hideInUi = true
+    coachThread.push(userEntry, { role: 'assistant', text: reply })
+    renderCoachMessages()
+  } catch (e) {
+    const msg = e?.message || String(e)
+    if (msg === 'NO_API_KEY') {
+      alert('.env에 VITE_OPENAI_API_KEY를 설정해 주세요.')
+    } else {
+      console.error('drawing coach:', e)
+      alert(msg.length > 400 ? `${msg.slice(0, 400)}…` : msg)
+    }
+  } finally {
+    setCoachBusy(false)
+  }
+}
+
+if (coachAnalyzeBtn) {
+  coachAnalyzeBtn.addEventListener('click', () => {
+    void runCoachTurn(COACH_ANALYZE_PROMPT, { hideUserMessage: true })
+  })
+}
+
+if (coachSendBtn && coachInput) {
+  coachSendBtn.addEventListener('click', () => {
+    const t = coachInput.value.trim()
+    if (!t) {
+      alert('질문을 입력해 주세요.')
+      return
+    }
+    coachInput.value = ''
+    void runCoachTurn(t)
+  })
+}
+
+renderCoachMessages()
 
 // 그림 저장하기
 saveDrawingBtn.addEventListener('click', async () => {

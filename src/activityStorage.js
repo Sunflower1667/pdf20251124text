@@ -1,7 +1,7 @@
 // 학생 활동을 Firebase Firestore에 저장하고 조회하는 유틸리티 함수
 import { initFirebase } from './firebaseConfig.js'
 import { getAuth } from 'firebase/auth'
-import { getFirestore, collection, addDoc, doc, setDoc, serverTimestamp, getDocs, query, where, orderBy, limit } from 'firebase/firestore'
+import { getFirestore, collection, addDoc, doc, setDoc, serverTimestamp, getDocs, query, where, orderBy, limit, deleteDoc } from 'firebase/firestore'
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage'
 
 /** Firestore activities 문서 안에 넣는 명세서 추출 텍스트 상한(문서 1MB 제한·다른 필드 여유) */
@@ -245,6 +245,89 @@ export async function getStudentActivities(maxResults = 50) {
   } catch (error) {
     console.error('학생 활동 조회 오류:', error)
     return []
+  }
+}
+
+/**
+ * 학생 활동 한 건을 Firestore에서 삭제합니다 (현재 로그인 사용자 본인의 기록).
+ * @param {string} activityId - getStudentActivities*()가 돌려준 id
+ * @returns {Promise<boolean>} 삭제 성공 여부
+ */
+export async function deleteStudentActivity(activityId) {
+  if (!activityId || typeof activityId !== 'string') return false
+  try {
+    const firebaseResult = initFirebase()
+    if (!firebaseResult.app) {
+      console.warn('Firebase가 초기화되지 않아 활동을 삭제할 수 없습니다.')
+      return false
+    }
+    const db = getFirestore(firebaseResult.app)
+    const userId = localStorage.getItem('userId')
+    if (!userId) {
+      console.warn('사용자 ID가 없어 활동을 삭제할 수 없습니다.')
+      return false
+    }
+    const docRef = doc(db, 'students', userId, 'activities', activityId)
+    await deleteDoc(docRef)
+    return true
+  } catch (error) {
+    console.error('학생 활동 삭제 오류:', error)
+    return false
+  }
+}
+
+/** 과거 활동 목록: 타입별로 나눠 가져와 병합 (한 타입만 연속 저장돼도 다른 단계 기록이 밀리지 않음) */
+const ACTIVITY_TIMELINE_TYPES = ['analysis', 'idea', 'drawing', 'reflection', 'invention_spec']
+
+/**
+ * 활동 타입별 최근 N건씩 조회 후 시간순으로 합칩니다. 단일 limit 쿼리보다 타입 간 공정하게 노출됩니다.
+ * @param {number} maxPerType - 타입당 최대 건수
+ */
+export async function getStudentActivitiesTimeline(maxPerType = 100) {
+  try {
+    const firebaseResult = initFirebase()
+    if (!firebaseResult.app) {
+      console.warn('Firebase가 초기화되지 않아 활동을 가져올 수 없습니다.')
+      return []
+    }
+    const db = getFirestore(firebaseResult.app)
+    const userId = localStorage.getItem('userId')
+    if (!userId) {
+      console.warn('사용자 ID가 없어 활동을 가져올 수 없습니다.')
+      return []
+    }
+
+    const activitiesRef = collection(db, 'students', userId, 'activities')
+    const byId = new Map()
+
+    await Promise.all(
+      ACTIVITY_TIMELINE_TYPES.map(async (type) => {
+        const q = query(
+          activitiesRef,
+          where('type', '==', type),
+          orderBy('timestamp', 'desc'),
+          limit(maxPerType)
+        )
+        const querySnapshot = await getDocs(q)
+        querySnapshot.forEach((docSnap) => {
+          const data = docSnap.data()
+          byId.set(docSnap.id, {
+            id: docSnap.id,
+            type: data.type,
+            data: data.data,
+            timestamp: data.timestamp?.toDate?.() || new Date(),
+          })
+        })
+      })
+    )
+
+    return Array.from(byId.values()).sort((a, b) => b.timestamp - a.timestamp)
+  } catch (error) {
+    console.warn(
+      '타입별 활동 타임라인 조회 실패, 단일 쿼리로 대체합니다. (복합 색인 필요할 수 있음)',
+      error
+    )
+    return getStudentActivities(maxPerType * ACTIVITY_TIMELINE_TYPES.length)
   }
 }
 

@@ -485,13 +485,66 @@ body {
 
 .completion-modal-content {
   text-align: center;
-  padding: 40px;
-  max-width: 500px;
+  padding: 48px 48px 56px;
+  width: 92%;
+  max-width: 880px;
+}
+
+.completion-image {
+  display: block;
+  margin: 0 auto 32px;
+  width: 480px;
+  height: 480px;
+  max-width: 80vw;
+  max-height: 60vh;
+  object-fit: contain;
 }
 
 .completion-icon {
-  font-size: 4rem;
-  margin-bottom: 20px;
+  font-size: 6rem;
+  margin-bottom: 24px;
+}
+
+.completion-title {
+  margin: 0 0 16px 0;
+  font-size: 1.9rem;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.completion-desc {
+  margin: 0 0 36px 0;
+  color: #64748b;
+  font-size: 1.05rem;
+}
+
+.completion-cta {
+  padding: 14px 32px;
+  font-size: 1.05rem;
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+  background: #2563eb;
+  color: #fff;
+  font-weight: 700;
+  transition: background 150ms ease, transform 150ms ease;
+}
+
+.completion-cta:hover {
+  background: #1d4ed8;
+  transform: translateY(-1px);
+}
+
+@media (max-width: 600px) {
+  .completion-modal-content {
+    padding: 36px 24px;
+  }
+
+  .completion-image {
+    width: 320px;
+    height: 320px;
+    max-width: 85vw;
+  }
 }
 
 .activities-list {
@@ -589,6 +642,30 @@ body {
 
 .view-detail-btn:hover {
   background: #eff6ff;
+}
+
+.past-delete-btn {
+  margin-left: auto;
+  padding: 8px 16px;
+  border: 1px solid #fecaca;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  font-family: inherit;
+  background: #ffffff;
+  color: #dc2626;
+  cursor: pointer;
+  transition: all 150ms ease;
+}
+
+.past-delete-btn:hover:not(:disabled) {
+  background: #fef2f2;
+  border-color: #fca5a5;
+}
+
+.past-delete-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 .activity-detail-modal .modal-body {

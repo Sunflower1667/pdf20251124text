@@ -129,7 +129,6 @@ form.addEventListener('input', () => {
   window.clearTimeout(t)
   t = window.setTimeout(() => {
     saveDraft(data)
-    persistInventionSpecActivity(data)
     if (statusEl) {
       statusEl.textContent = '임시 저장되었습니다.'
       window.setTimeout(() => {
