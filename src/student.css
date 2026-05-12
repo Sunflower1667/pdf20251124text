@@ -224,10 +224,10 @@ body {
   box-shadow: 0 4px 12px rgba(15, 23, 42, 0.15);
 }
 
-/* 활동 단계: 전체 너비 5열 그리드로 한눈에 가로 배치 */
+/* 활동 단계: 전체 너비 6열 그리드로 한눈에 가로 배치 */
 .activity-nav {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 8px;
   width: 100%;
   margin: 0;
@@ -644,30 +644,6 @@ body {
   background: #eff6ff;
 }
 
-.past-delete-btn {
-  margin-left: auto;
-  padding: 8px 16px;
-  border: 1px solid #fecaca;
-  border-radius: 8px;
-  font-size: 0.9rem;
-  font-weight: 600;
-  font-family: inherit;
-  background: #ffffff;
-  color: #dc2626;
-  cursor: pointer;
-  transition: all 150ms ease;
-}
-
-.past-delete-btn:hover:not(:disabled) {
-  background: #fef2f2;
-  border-color: #fca5a5;
-}
-
-.past-delete-btn:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
 .activity-detail-modal .modal-body {
   color: #0f172a;
   line-height: 1.8;
@@ -691,5 +667,60 @@ body {
 
 .activity-detail-modal .modal-body li {
   margin: 4px 0;
+}
+
+.dashboard-footer {
+  background: #ffffff;
+  border-top: 1px solid #e2e8f0;
+  padding: 16px clamp(16px, 2.5vw, 48px);
+  box-shadow: 0 -2px 8px rgba(15, 23, 42, 0.06);
+  position: sticky;
+  bottom: 0;
+  z-index: 90;
+}
+
+.dashboard-footer-inner {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.save-all-status {
+  margin: 0;
+  flex: 1;
+  min-width: 240px;
+  font-size: 0.92rem;
+  color: #475569;
+  line-height: 1.5;
+}
+
+.save-all-btn::before {
+  content: '💾';
+  font-size: 1.2rem;
+}
+
+.save-all-btn {
+  background: #16a34a;
+  box-shadow: 0 4px 16px rgba(22, 163, 74, 0.3);
+}
+
+.save-all-btn:hover:not(:disabled) {
+  background: #15803d;
+  box-shadow: 0 6px 20px rgba(22, 163, 74, 0.4);
+}
+
+@media (max-width: 640px) {
+  .dashboard-footer-inner {
+    justify-content: stretch;
+  }
+  .save-all-status {
+    flex-basis: 100%;
+  }
+  .save-all-btn {
+    width: 100%;
+    justify-content: center;
+  }
 }
 

@@ -22,21 +22,22 @@ body {
   display: flex;
   justify-content: center;
   align-items: flex-start;
-  padding: 32px;
+  padding: clamp(16px, 2.4vw, 36px);
 }
 
 #app {
-  width: min(1400px, 100%);
+  width: 100%;
+  max-width: none;
 }
 
 .shell {
   background: #ffffff;
   border-radius: 20px;
-  padding: 32px clamp(16px, 4vw, 48px);
+  padding: clamp(20px, 2.4vw, 36px) clamp(18px, 2.6vw, 44px);
   box-shadow: 0 25px 65px rgba(15, 23, 42, 0.15);
   display: flex;
   flex-direction: column;
-  gap: 32px;
+  gap: 28px;
 }
 
 header {
@@ -223,8 +224,8 @@ button:disabled {
 /* 아이디어 생성 섹션 */
 .ideas-container {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-  gap: 20px;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 22px;
 }
 
 .idea-card {
@@ -353,6 +354,46 @@ button:disabled {
 
 .selected-idea-triz strong {
   color: #0f5132;
+}
+
+.selection-reason {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px dashed #86efac;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.selection-reason-label {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #166534;
+}
+
+.selection-reason-input {
+  width: 100%;
+  min-height: 64px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid #86efac;
+  background: #ffffff;
+  color: #0f172a;
+  font-family: inherit;
+  font-size: 0.95rem;
+  line-height: 1.55;
+  resize: vertical;
+  transition: border-color 150ms ease, box-shadow 150ms ease;
+}
+
+.selection-reason-input::placeholder {
+  color: #94a3b8;
+}
+
+.selection-reason-input:focus {
+  outline: none;
+  border-color: #16a34a;
+  box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.18);
 }
 
 .triz-guide {

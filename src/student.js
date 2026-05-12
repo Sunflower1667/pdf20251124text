@@ -32,6 +32,7 @@ app.innerHTML = `
         </div>
       </div>
       <nav class="activity-nav" aria-label="활동 단계 선택">
+        <button type="button" class="activity-nav-btn" data-activity-src="seed.html">나의 발명 씨앗 찾기</button>
         <button type="button" class="activity-nav-btn" data-activity-src="student2.html">명세서 탐색하기</button>
         <button type="button" class="activity-nav-btn" data-activity-src="idea.html">아이디어 창출하기</button>
         <button type="button" class="activity-nav-btn" data-activity-src="idea.html#concretize">발명품 선정 및 구체화</button>
@@ -52,6 +53,15 @@ app.innerHTML = `
         hidden
       ></iframe>
     </div>
+
+    <footer class="dashboard-footer" aria-label="전체 저장">
+      <div class="dashboard-footer-inner">
+        <p id="save-all-status" class="save-all-status" aria-live="polite"></p>
+        <button id="save-all-btn" class="action-btn-primary save-all-btn" type="button">
+          전체 저장
+        </button>
+      </div>
+    </footer>
   </div>
 `
 
@@ -60,6 +70,8 @@ const finishActivityBtn = document.querySelector('#finish-activity-btn')
 const resumeActivitiesBtn = document.querySelector('#resume-activities-btn')
 const viewPastBtn = document.querySelector('#view-past-btn')
 const saveWorkbenchBtn = document.querySelector('#save-workbench-btn')
+const saveAllBtn = document.querySelector('#save-all-btn')
+const saveAllStatus = document.querySelector('#save-all-status')
 const activityNavBtns = document.querySelectorAll('.activity-nav-btn')
 const activityPlaceholder = document.querySelector('#activity-placeholder')
 const activityFrame = document.querySelector('#activity-frame')
@@ -135,6 +147,7 @@ window.addEventListener('message', (e) => {
 
 // Firebase 초기화 및 로그인 상태 확인
 const firebaseResult = initFirebase()
+let didAutoLoadLatestSet = false
 if (firebaseResult.auth) {
   onAuthStateChanged(firebaseResult.auth, (user) => {
     if (user) {
@@ -148,6 +161,12 @@ if (firebaseResult.auth) {
         userPhoto.style.display = photoURL ? 'block' : 'none'
       }
       if (userInfo) userInfo.style.display = 'flex'
+
+      // 페이지 로드(또는 로그인 직후) 시 최신 활동 세트를 한 번에 불러와 모든 카드에 채워둡니다.
+      if (!didAutoLoadLatestSet) {
+        didAutoLoadLatestSet = true
+        void autoLoadLatestActivitySet()
+      }
     } else {
       // 로그아웃 상태: 사용자 정보 숨김
       if (userInfo) userInfo.style.display = 'none'
@@ -436,6 +455,7 @@ async function showPastActivitiesModal(activities) {
                   drawing: '발명품 표현하기',
                   reflection: '오늘 활동 소감',
                   invention_spec: '나만의 발명품 명세서 완성하기',
+                  spec_explore_reflection: '내 생각 정리',
                 }
                 const typeLabel = typeLabels[activity.type] || activity.type
                 const openable = hasPastActivityOpenableContent(activity)
@@ -445,7 +465,6 @@ async function showPastActivitiesModal(activities) {
                 const a11yAttrs = openable
                   ? ` role="button" tabindex="0" aria-label="${sanitize(typeLabel)} 기록에서 이어하기"`
                   : ''
-                const hasId = !!activity.id
 
                 return `
                   <div class="activity-item ${openableClass}" data-index="${index}"${a11yAttrs}>
@@ -461,11 +480,6 @@ async function showPastActivitiesModal(activities) {
                       ${
                         loadable
                           ? `<button type="button" class="past-load-spec-btn" data-index="${index}">이 내용으로 불러오기</button>`
-                          : ''
-                      }
-                      ${
-                        hasId
-                          ? `<button type="button" class="past-delete-btn" data-index="${index}" aria-label="${sanitize(typeLabel)} 기록 삭제">기록 삭제</button>`
                           : ''
                       }
                     </div>
@@ -488,7 +502,6 @@ async function showPastActivitiesModal(activities) {
   const overlay = modal.querySelector('.modal-overlay')
   const viewDetailBtns = modal.querySelectorAll('.view-detail-btn')
   const loadSpecBtns = modal.querySelectorAll('.past-load-spec-btn')
-  const deleteBtns = modal.querySelectorAll('.past-delete-btn')
   const activitiesList = modal.querySelector('.activities-list')
   
   // ESC 키로 닫기
@@ -554,49 +567,6 @@ async function showPastActivitiesModal(activities) {
     })
   })
 
-  // 활동 한 건 삭제
-  deleteBtns.forEach((btn) => {
-    btn.addEventListener('click', async (e) => {
-      e.stopPropagation()
-      const index = parseInt(btn.dataset.index, 10)
-      const activity = activities[index]
-      if (!activity?.id) return
-      if (!confirm('이 기록을 삭제할까요? 삭제하면 되돌릴 수 없습니다.')) return
-
-      const prevLabel = btn.textContent
-      btn.disabled = true
-      btn.textContent = '삭제 중...'
-      try {
-        const { deleteStudentActivity } = await import('./activityStorage.js')
-        const ok = await deleteStudentActivity(activity.id)
-        if (!ok) {
-          alert('기록 삭제에 실패했습니다. 잠시 후 다시 시도해 주세요.')
-          return
-        }
-        // 화면에서 즉시 제거
-        const itemEl = btn.closest('.activity-item')
-        if (itemEl && itemEl.parentNode) itemEl.parentNode.removeChild(itemEl)
-        // 목록 캐시에서도 제거(인덱스 무효화 방지를 위해 splice 대신 비활성화)
-        activities[index] = null
-        // 남은 항목이 없으면 빈 안내 표시
-        const remaining = modal.querySelectorAll('.activity-item').length
-        if (remaining === 0) {
-          const body = modal.querySelector('.modal-body')
-          if (body) {
-            body.innerHTML =
-              '<p style="text-align: center; color: #64748b; padding: 40px;">저장된 활동이 없습니다.</p>'
-          }
-        }
-      } catch (err) {
-        console.error('과거 활동 삭제 오류:', err)
-        alert('기록 삭제 중 오류가 발생했습니다.')
-      } finally {
-        btn.disabled = false
-        btn.textContent = prevLabel
-      }
-    })
-  })
-
   // 저장된 활동 → 해당 iframe으로 이동 (비동기 복원)
   if (activitiesList && activities.length > 0) {
     const tryOpenRow = async (index) => {
@@ -627,8 +597,7 @@ async function showPastActivitiesModal(activities) {
       if (
         !item ||
         e.target.closest('.view-detail-btn') ||
-        e.target.closest('.past-load-spec-btn') ||
-        e.target.closest('.past-delete-btn')
+        e.target.closest('.past-load-spec-btn')
       )
         return
       const index = parseInt(item.dataset.index, 10)
@@ -642,8 +611,7 @@ async function showPastActivitiesModal(activities) {
       if (
         !item ||
         e.target.closest('.view-detail-btn') ||
-        e.target.closest('.past-load-spec-btn') ||
-        e.target.closest('.past-delete-btn')
+        e.target.closest('.past-load-spec-btn')
       )
         return
       e.preventDefault()
@@ -889,4 +857,95 @@ activityNavBtns.forEach((btn) => {
     openWorkspaceIframe(src)
   })
 })
+
+/* -------------------------------------------------------------------------- */
+/*  전체 저장(하단 버튼) / 페이지 로드 시 최신 활동 세트 일괄 복원             */
+/* -------------------------------------------------------------------------- */
+
+const ACTIVITY_KEY_LABELS = {
+  seed: '나의 발명 씨앗',
+  analysis: '명세서 분석',
+  idea: '아이디어 창출',
+  drawing: '발명품 그림',
+  inventionSpec: '발명품 명세서',
+  reflection: '활동 소감',
+}
+
+function formatSavedKeys(keys) {
+  if (!Array.isArray(keys) || keys.length === 0) return ''
+  return keys.map((k) => ACTIVITY_KEY_LABELS[k] || k).join(', ')
+}
+
+function setSaveAllStatus(text) {
+  if (saveAllStatus) saveAllStatus.textContent = text || ''
+}
+
+async function autoLoadLatestActivitySet() {
+  if (!localStorage.getItem('userId')) return
+  try {
+    setSaveAllStatus('지난 활동 세트를 불러오는 중...')
+    const { loadLatestActivitySetAndApply } = await import('./studentActivity.js')
+    const result = await loadLatestActivitySetAndApply()
+
+    if (!result.hadAny) {
+      setSaveAllStatus('아직 저장된 활동 세트가 없습니다. 활동 후 [전체 저장] 버튼을 눌러보세요.')
+      return
+    }
+
+    const when = result.timestamp ? new Date(result.timestamp).toLocaleString('ko-KR') : '최근'
+    const labels = formatSavedKeys(result.appliedKeys)
+    setSaveAllStatus(`최신 활동 세트(${when})를 불러왔습니다 — ${labels}`)
+
+    // 이미 열려 있는 iframe이 있다면 새 데이터를 반영하기 위해 새로고침
+    if (activityFrame && !activityFrame.hidden && activityFrame.src) {
+      activityFrame.src = activityFrame.src
+    }
+  } catch (error) {
+    console.error('최신 활동 세트 자동 로드 오류:', error)
+    setSaveAllStatus('최신 활동 세트를 불러오지 못했습니다.')
+  }
+}
+
+if (saveAllBtn) {
+  saveAllBtn.addEventListener('click', async () => {
+    if (!localStorage.getItem('userId')) {
+      alert('로그인 후 저장할 수 있습니다.')
+      return
+    }
+    saveAllBtn.disabled = true
+    const prevLabel = saveAllBtn.textContent
+    saveAllBtn.textContent = '저장 중...'
+    setSaveAllStatus('writeBatch로 모든 활동 카드를 한 번에 저장 중...')
+    try {
+      const { saveAllActivitiesWithBatch } = await import('./studentActivity.js')
+      const result = await saveAllActivitiesWithBatch(activityFrame?.contentWindow)
+      if (!result.ok) {
+        if (result.reason === 'empty') {
+          setSaveAllStatus('저장할 활동 데이터가 없습니다. 카드 중 하나라도 작성한 뒤 다시 시도해 주세요.')
+          alert('저장할 활동 데이터가 없습니다.\n각 활동을 진행한 뒤 다시 시도해 주세요.')
+        } else {
+          setSaveAllStatus('저장에 실패했습니다.')
+        }
+        return
+      }
+      const labels = formatSavedKeys(result.savedKeys)
+      const when = new Date().toLocaleString('ko-KR')
+      setSaveAllStatus(`전체 저장 완료(${when}) — ${labels}`)
+      alert(`전체 저장 완료!\n저장된 활동: ${labels}`)
+    } catch (error) {
+      console.error('전체 저장 오류:', error)
+      setSaveAllStatus('전체 저장 중 오류가 발생했습니다. 네트워크를 확인 후 다시 시도해 주세요.')
+      alert('전체 저장 중 오류가 발생했습니다. 네트워크를 확인 후 다시 시도해 주세요.')
+    } finally {
+      saveAllBtn.disabled = false
+      saveAllBtn.textContent = prevLabel
+    }
+  })
+}
+
+// Firebase 초기화 실패 시에도(로그인되어 있다면) 최신 세트 한 번 시도
+if (!firebaseResult?.auth && localStorage.getItem('userId') && !didAutoLoadLatestSet) {
+  didAutoLoadLatestSet = true
+  void autoLoadLatestActivitySet()
+}
 

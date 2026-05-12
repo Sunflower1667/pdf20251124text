@@ -94,6 +94,9 @@ export function mountStudentPdfAnalysis(rootEl, options = {}) {
             <textarea id="reflect-improvements" class="explore-reflection-textarea" rows="3" placeholder="보완이 필요하다고 생각하는 점을 적어 보세요."></textarea>
           </div>
         </div>
+        <div class="explore-reflection-actions">
+          <button id="save-reflection-btn" type="button" disabled>내 생각 정리 저장하기</button>
+        </div>
       </section>
     </aside>`
     : ''
@@ -128,6 +131,7 @@ export function mountStudentPdfAnalysis(rootEl, options = {}) {
   const coachInput = showCoachPanel ? rootEl.querySelector('#coach-input') : null
   const coachSend = showCoachPanel ? rootEl.querySelector('#coach-send') : null
   const coachHint = showCoachPanel ? rootEl.querySelector('#coach-hint') : null
+  const saveReflectionBtn = showCoachPanel ? rootEl.querySelector('#save-reflection-btn') : null
 
   let lastExtractedText = ''
   let lastAnalysisData = null
@@ -210,6 +214,53 @@ export function mountStudentPdfAnalysis(rootEl, options = {}) {
       /* ignore */
     }
     updateCoachUi()
+    refreshSaveReflectionButton()
+  }
+
+  function refreshSaveReflectionButton() {
+    if (!saveReflectionBtn) return
+    saveReflectionBtn.disabled = !isReflectionComplete()
+  }
+
+  function getReflectionValues() {
+    const f = rootEl.querySelector('#reflect-features')
+    const m = rootEl.querySelector('#reflect-materials')
+    const i = rootEl.querySelector('#reflect-improvements')
+    return {
+      features: f?.value?.trim() || '',
+      materials: m?.value?.trim() || '',
+      improvements: i?.value?.trim() || '',
+    }
+  }
+
+  async function saveReflectionAsPdfAndActivity() {
+    if (!saveReflectionBtn) return
+    if (!isReflectionComplete()) {
+      alert('세 칸을 모두 채운 뒤에 저장할 수 있어요.')
+      return
+    }
+
+    const values = getReflectionValues()
+    const originalLabel = saveReflectionBtn.textContent
+    saveReflectionBtn.disabled = true
+    saveReflectionBtn.textContent = '저장 중…'
+
+    try {
+      const { saveStudentActivity } = await import('./activityStorage.js')
+      await saveStudentActivity('spec_explore_reflection', {
+        features: values.features,
+        materials: values.materials,
+        improvements: values.improvements,
+      })
+
+      alert('내 생각 정리가 저장되었어요!')
+    } catch (error) {
+      console.error('내 생각 정리 저장 오류:', error)
+      alert('저장 중 오류가 발생했어요. 다시 시도해 주세요.')
+    } finally {
+      saveReflectionBtn.textContent = originalLabel || '내 생각 정리 저장하기'
+      refreshSaveReflectionButton()
+    }
   }
 
   function loadReflectionFromStorage() {
@@ -240,6 +291,7 @@ export function mountStudentPdfAnalysis(rootEl, options = {}) {
     } catch {
       /* ignore */
     }
+    refreshSaveReflectionButton()
   }
 
   function updateReflectionVisibility() {
@@ -598,6 +650,12 @@ export function mountStudentPdfAnalysis(rootEl, options = {}) {
       const el = rootEl.querySelector(id)
       if (el) el.addEventListener('input', persistReflection)
     }
+    if (saveReflectionBtn) {
+      saveReflectionBtn.addEventListener('click', () => {
+        saveReflectionAsPdfAndActivity()
+      })
+    }
+    refreshSaveReflectionButton()
     updateCoachUi()
     if (coachSend) {
       coachSend.addEventListener('click', () => {

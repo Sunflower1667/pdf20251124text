@@ -22,14 +22,14 @@ body {
   display: flex;
   justify-content: center;
   align-items: flex-start;
-  padding: 24px 20px 40px;
+  padding: clamp(16px, 2.4vw, 36px);
 }
 
-/* 학생 대시보드 iframe보다 살짝 좁게, 이전(960px)보다 넓게 */
+/* 학생 대시보드 iframe 영역을 가능한 한 넓게 사용 */
 #app,
 #ai-app {
   width: 100%;
-  max-width: min(1320px, calc(100% - 32px));
+  max-width: none;
   margin: 0 auto;
 }
 
@@ -37,7 +37,7 @@ body {
   width: 100%;
   background: #ffffff;
   border-radius: 20px;
-  padding: 32px clamp(20px, 3vw, 44px);
+  padding: clamp(20px, 2.4vw, 36px) clamp(18px, 2.6vw, 44px);
   box-shadow: 0 25px 65px rgba(15, 23, 42, 0.15);
   display: flex;
   flex-direction: column;
@@ -288,6 +288,18 @@ body {
   border-color: #6366f1;
   background: #fff;
   box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
+}
+
+.explore-reflection-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 4px;
+}
+
+.explore-reflection-actions button {
+  padding: 10px 18px;
+  font-size: 0.92rem;
+  border-radius: 10px;
 }
 
 .explore-main--spec .uploader {

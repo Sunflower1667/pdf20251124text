@@ -1,7 +1,20 @@
 // 학생 활동을 Firebase Firestore에 저장하고 조회하는 유틸리티 함수
 import { initFirebase } from './firebaseConfig.js'
 import { getAuth } from 'firebase/auth'
-import { getFirestore, collection, addDoc, doc, setDoc, serverTimestamp, getDocs, query, where, orderBy, limit, deleteDoc } from 'firebase/firestore'
+import {
+  getFirestore,
+  collection,
+  addDoc,
+  doc,
+  setDoc,
+  serverTimestamp,
+  getDocs,
+  query,
+  where,
+  orderBy,
+  limit,
+  writeBatch,
+} from 'firebase/firestore'
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage'
 
 /** Firestore activities 문서 안에 넣는 명세서 추출 텍스트 상한(문서 1MB 제한·다른 필드 여유) */
@@ -200,6 +213,194 @@ export async function downloadSpecPdfFromStorage(fullPath) {
 }
 
 /**
+ * 활동 세트(통합 묶음) 한 건이 가질 수 있는 키 목록.
+ * 대시보드의 각 활동 카드가 자신의 데이터를 이 키 아래에 두면, 한 번의 저장/로드로 전체가 동기화됩니다.
+ */
+export const ACTIVITY_SET_KEYS = [
+  'seed',
+  'analysis',
+  'idea',
+  'drawing',
+  'inventionSpec',
+  'reflection',
+]
+
+/** Firestore 단일 문서 1MB 제한을 넘기지 않도록 보수적인 상한. */
+const ACTIVITY_SET_MAX_BYTES = 900_000
+
+function approximateByteSize(value) {
+  try {
+    return new Blob([JSON.stringify(value ?? null)]).size
+  } catch {
+    try {
+      return JSON.stringify(value ?? null).length
+    } catch {
+      return 0
+    }
+  }
+}
+
+/**
+ * 한 활동(카드)의 데이터를 Firestore 안전한 형태로 정리합니다.
+ * 빈 객체/널은 그대로 null 로 통일해 set 문서가 너무 부풀지 않게 합니다.
+ */
+function normalizeSetEntry(value) {
+  if (value == null) return null
+  if (typeof value !== 'object') return value
+  if (Array.isArray(value)) return value.length ? value : null
+  return Object.keys(value).length ? value : null
+}
+
+function buildSafeActivitySet(activitySet) {
+  const safe = {}
+  let hasAny = false
+  for (const key of ACTIVITY_SET_KEYS) {
+    const entry = normalizeSetEntry(activitySet?.[key])
+    safe[key] = entry
+    if (entry != null) hasAny = true
+  }
+  return { safe, hasAny }
+}
+
+/**
+ * 학생 활동 카드 데이터 전체를 하나의 객체로 묶어 writeBatch로 저장합니다.
+ *
+ * 한 번의 batch.commit() 안에서:
+ *   1) `students/{userId}` 문서의 lastActivity / 사용자 정보 갱신
+ *   2) `students/{userId}/activitySets/{auto}` 에 통합 세트 문서 저장
+ *   3) 비어 있지 않은 각 카드 데이터를 `students/{userId}/activities` 에도 동시 기록(과거 타임라인/교사 화면 호환용)
+ *
+ * @param {Record<string, unknown>} activitySet — 카드별 데이터 묶음
+ * @returns {Promise<{ id: string; savedKeys: string[] } | null>} 저장된 세트 문서 정보(저장하지 않은 경우 null)
+ */
+export async function saveActivitySetWithBatch(activitySet) {
+  const firebaseResult = initFirebase()
+  if (!firebaseResult.app) {
+    console.warn('Firebase가 초기화되지 않아 활동 세트를 저장할 수 없습니다.')
+    return null
+  }
+
+  const userId = localStorage.getItem('userId')
+  if (!userId) {
+    console.warn('사용자 ID가 없어 활동 세트를 저장할 수 없습니다.')
+    return null
+  }
+
+  const { safe, hasAny } = buildSafeActivitySet(activitySet)
+  if (!hasAny) {
+    console.info('[activitySet] 저장할 활동 데이터가 없어 건너뜁니다.')
+    return null
+  }
+
+  const totalBytes = approximateByteSize(safe)
+  if (totalBytes > ACTIVITY_SET_MAX_BYTES) {
+    console.warn(
+      `[activitySet] 활동 세트 추정 크기(${totalBytes}B)가 한도(${ACTIVITY_SET_MAX_BYTES}B)를 넘어 ` +
+        '큰 항목(주로 그림 data URL)을 자동 축소합니다. 가능한 경우 Storage 업로드를 고려하세요.'
+    )
+    if (safe.drawing && typeof safe.drawing === 'object') {
+      const placeholder = { ...safe.drawing }
+      delete placeholder.image
+      placeholder.imageOmitted = true
+      safe.drawing = placeholder
+    }
+    if (safe.inventionSpec && typeof safe.inventionSpec === 'object' && safe.inventionSpec.drawingImage) {
+      const placeholder = { ...safe.inventionSpec }
+      delete placeholder.drawingImage
+      placeholder.drawingImageOmitted = true
+      safe.inventionSpec = placeholder
+    }
+  }
+
+  const db = getFirestore(firebaseResult.app)
+  const userEmail = localStorage.getItem('userEmail') || ''
+  const userName = localStorage.getItem('userName') || ''
+
+  const batch = writeBatch(db)
+
+  const studentRef = doc(db, 'students', userId)
+  batch.set(
+    studentRef,
+    {
+      email: userEmail,
+      name: userName || userEmail || '이름 없음',
+      lastActivity: serverTimestamp(),
+    },
+    { merge: true }
+  )
+
+  const setsCol = collection(db, 'students', userId, 'activitySets')
+  const setRef = doc(setsCol)
+  const savedKeys = ACTIVITY_SET_KEYS.filter((k) => safe[k] != null)
+  batch.set(setRef, {
+    set: safe,
+    savedKeys,
+    timestamp: serverTimestamp(),
+  })
+
+  const activitiesCol = collection(db, 'students', userId, 'activities')
+  const TYPE_MAP = {
+    seed: 'seed',
+    analysis: 'analysis',
+    idea: 'idea',
+    drawing: 'drawing',
+    inventionSpec: 'invention_spec',
+    reflection: 'reflection',
+  }
+  for (const key of savedKeys) {
+    const type = TYPE_MAP[key]
+    if (!type) continue
+    batch.set(doc(activitiesCol), {
+      type,
+      data: safe[key],
+      timestamp: serverTimestamp(),
+      activitySetId: setRef.id,
+    })
+  }
+
+  await batch.commit()
+  console.log('[activitySet] writeBatch 저장 완료:', setRef.id, savedKeys)
+  return { id: setRef.id, savedKeys }
+}
+
+/**
+ * 가장 최근에 저장된 활동 세트 한 건을 불러옵니다. (페이지 로드 시 카드 일괄 복원용)
+ * @returns {Promise<{ id: string; set: Record<string, unknown>; savedKeys: string[]; timestamp: Date } | null>}
+ */
+export async function getLatestActivitySet() {
+  try {
+    const firebaseResult = initFirebase()
+    if (!firebaseResult.app) return null
+
+    const userId = localStorage.getItem('userId')
+    if (!userId) return null
+
+    const db = getFirestore(firebaseResult.app)
+    const setsCol = collection(db, 'students', userId, 'activitySets')
+    const q = query(setsCol, orderBy('timestamp', 'desc'), limit(1))
+    const snap = await getDocs(q)
+    if (snap.empty) return null
+
+    const docSnap = snap.docs[0]
+    const data = docSnap.data() || {}
+    const rawSet = data.set && typeof data.set === 'object' ? data.set : {}
+    const set = {}
+    for (const key of ACTIVITY_SET_KEYS) {
+      set[key] = rawSet[key] ?? null
+    }
+    return {
+      id: docSnap.id,
+      set,
+      savedKeys: Array.isArray(data.savedKeys) ? data.savedKeys : ACTIVITY_SET_KEYS.filter((k) => set[k] != null),
+      timestamp: data.timestamp?.toDate?.() || new Date(),
+    }
+  } catch (error) {
+    console.error('최신 활동 세트 조회 오류:', error)
+    return null
+  }
+}
+
+/**
  * 학생의 활동 기록을 Firebase에서 가져오기
  * @param {number} maxResults - 최대 가져올 활동 수 (기본값: 50)
  * @returns {Promise<Array>} 활동 배열
@@ -245,34 +446,6 @@ export async function getStudentActivities(maxResults = 50) {
   } catch (error) {
     console.error('학생 활동 조회 오류:', error)
     return []
-  }
-}
-
-/**
- * 학생 활동 한 건을 Firestore에서 삭제합니다 (현재 로그인 사용자 본인의 기록).
- * @param {string} activityId - getStudentActivities*()가 돌려준 id
- * @returns {Promise<boolean>} 삭제 성공 여부
- */
-export async function deleteStudentActivity(activityId) {
-  if (!activityId || typeof activityId !== 'string') return false
-  try {
-    const firebaseResult = initFirebase()
-    if (!firebaseResult.app) {
-      console.warn('Firebase가 초기화되지 않아 활동을 삭제할 수 없습니다.')
-      return false
-    }
-    const db = getFirestore(firebaseResult.app)
-    const userId = localStorage.getItem('userId')
-    if (!userId) {
-      console.warn('사용자 ID가 없어 활동을 삭제할 수 없습니다.')
-      return false
-    }
-    const docRef = doc(db, 'students', userId, 'activities', activityId)
-    await deleteDoc(docRef)
-    return true
-  } catch (error) {
-    console.error('학생 활동 삭제 오류:', error)
-    return false
   }
 }
 

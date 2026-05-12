@@ -206,6 +206,10 @@ let selectedIdeaIndex = -1
 let chatHistory = []
 let refinedIdeasData = []
 let lastKeywords = []
+let selectionReason = ''
+
+const SELECTION_REASON_PLACEHOLDER =
+  '예) 내가 이 아이디어를 선택한 이유는 ~원리가 마음에 들었기 때문이다.'
 
 function applyIdeaPageHash() {
   const raw = (location.hash || '').replace(/^#/, '').toLowerCase()
@@ -373,6 +377,7 @@ if (saveChatBtn) {
         ideas: generatedIdeas,
         keywords: lastKeywords,
         selectedIdea: selectedIdea,
+        selectionReason: selectionReason,
         chatHistory: chatHistory,
         refinedIdea: refinedIdeasData.length > 0 ? refinedIdeasData[refinedIdeasData.length - 1] : null
       })
@@ -447,7 +452,7 @@ async function generateIdeas(apiKey, analysis, keywords) {
 
   const trizListText = buildTrizPromptText()
 
-  const prompt = `당신은 중학생을 위한 발명 도우미입니다. 학생이 입력한 키워드 3개와 명세서 정보를 바탕으로, 아래 "TRIZ 발명 치트키 40"에서 가장 어울리는 기법을 선택해 그 원리를 실제로 적용한 새로운 발명 아이디어 3개를 만들어 주세요.
+  const prompt = `너는 중학교 기술 교사이며 TRIZ 발명 전문가야. 학생이 입력한 3가지 키워드를 바탕으로 TRIZ의 40가지 원리 중 가장 적합한 3가지를 골라 발명 아이디어를 제안해줘. 단, 결과만 보여주지 말고 **[적용된 TRIZ 원리]**와 [그 원리를 선택한 이유]를 중학생 수준에서 친절하게 설명해야 합니다.
 
 [TRIZ 발명 치트키 40]
 ${trizListText}
@@ -634,16 +639,8 @@ function displayIdeas(ideas) {
 
 function selectIdea(index, idea) {
   selectedIdeaIndex = index
-  const trizLine = idea.trizPrinciple?.name
-    ? `<p class="selected-idea-triz">적용된 TRIZ 기법: <strong>${sanitize(`${idea.trizPrinciple.id ?? ''} ${idea.trizPrinciple.name}`.trim())}</strong></p>`
-    : ''
-  selectedIdeaEl.innerHTML = `
-    <div class="selected-idea-content">
-      <h3>선택한 아이디어: ${sanitize(idea.name)}</h3>
-      <p>${sanitize(idea.description)}</p>
-      ${trizLine}
-    </div>
-  `
+  selectionReason = ''
+  renderSelectedIdea(idea)
   chatSection.style.display = 'block'
   chatHistory = [
     {
@@ -656,6 +653,39 @@ function selectIdea(index, idea) {
   if (refineIdeaBtn) refineIdeaBtn.disabled = true
   flushStudentIdeaSessionToStorage()
   notifyParentIdeaStep('concretize')
+}
+
+function renderSelectedIdea(idea) {
+  if (!selectedIdeaEl) return
+  const trizLine = idea.trizPrinciple?.name
+    ? `<p class="selected-idea-triz">적용된 TRIZ 기법: <strong>${sanitize(`${idea.trizPrinciple.id ?? ''} ${idea.trizPrinciple.name}`.trim())}</strong></p>`
+    : ''
+  selectedIdeaEl.innerHTML = `
+    <div class="selected-idea-content">
+      <h3>선택한 아이디어: ${sanitize(idea.name)}</h3>
+      <p>${sanitize(idea.description)}</p>
+      ${trizLine}
+      <div class="selection-reason">
+        <label for="selection-reason-input" class="selection-reason-label">
+          이 아이디어를 선택한 이유를 적어 보세요.
+        </label>
+        <textarea
+          id="selection-reason-input"
+          class="selection-reason-input"
+          rows="2"
+          placeholder="${SELECTION_REASON_PLACEHOLDER}"
+        >${sanitize(selectionReason)}</textarea>
+      </div>
+    </div>
+  `
+
+  const reasonInput = document.querySelector('#selection-reason-input')
+  if (reasonInput) {
+    reasonInput.addEventListener('input', (e) => {
+      selectionReason = e.target.value
+      flushStudentIdeaSessionToStorage()
+    })
+  }
 }
 
 function tryRestoreStudentIdeaSession() {
@@ -692,16 +722,9 @@ function tryRestoreStudentIdeaSession() {
     const savedChat = Array.isArray(s.chatHistory) ? s.chatHistory : []
     if (selectedIdeaIndex >= 0 && savedChat.length > 0 && selectedIdeaEl && chatSection) {
       const idea = generatedIdeas[selectedIdeaIndex]
-      const trizLine = idea.trizPrinciple?.name
-        ? `<p class="selected-idea-triz">적용된 TRIZ 기법: <strong>${sanitize(`${idea.trizPrinciple.id ?? ''} ${idea.trizPrinciple.name}`.trim())}</strong></p>`
-        : ''
-      selectedIdeaEl.innerHTML = `
-        <div class="selected-idea-content">
-          <h3>선택한 아이디어: ${sanitize(idea.name)}</h3>
-          <p>${sanitize(idea.description)}</p>
-          ${trizLine}
-        </div>
-      `
+      selectionReason =
+        typeof s.selectionReason === 'string' ? s.selectionReason : ''
+      renderSelectedIdea(idea)
       chatSection.style.display = 'block'
       chatHistory = savedChat
       renderChatMessages()
@@ -791,6 +814,7 @@ async function sendMessage() {
             ideas: generatedIdeas,
             keywords: lastKeywords,
             selectedIdea: selectedIdea,
+            selectionReason: selectionReason,
             chatHistory: chatHistory,
             refinedIdea: refinedIdeasData.length > 0 ? refinedIdeasData[refinedIdeasData.length - 1] : null
           })
@@ -992,6 +1016,7 @@ ${conversationText}
         ideas: generatedIdeas,
         keywords: lastKeywords,
         selectedIdea: selectedIdea,
+        selectionReason: selectionReason,
         chatHistory: chatHistory,
         refinedIdea: refined
       })
@@ -1071,6 +1096,15 @@ async function generateChatPdf(idea, history) {
               <h2 style="font-size: 18px; font-weight: bold; margin-bottom: 10px; color: #475569;">적용된 TRIZ 발명 기법</h2>
               <p style="font-size: 14px; line-height: 1.6; margin-left: 10px;"><strong>${sanitize(`${idea.trizPrinciple.id ?? ''} ${idea.trizPrinciple.name}`.trim())}</strong></p>
               ${idea.trizPrinciple.applied ? `<p style="font-size: 13px; line-height: 1.6; margin-left: 10px; color:#475569;">적용 방식: ${sanitize(idea.trizPrinciple.applied)}</p>` : ''}
+            </div>`
+          : ''
+      }
+
+      ${
+        selectionReason && selectionReason.trim()
+          ? `<div style="margin-bottom: 30px;">
+              <h2 style="font-size: 18px; font-weight: bold; margin-bottom: 10px; color: #475569;">아이디어를 선택한 이유</h2>
+              <p style="font-size: 14px; line-height: 1.6; margin-left: 10px;">${sanitize(selectionReason)}</p>
             </div>`
           : ''
       }
@@ -1320,6 +1354,7 @@ function flushStudentIdeaSessionToStorage() {
       selectedIdeaIndex >= 0 && generatedIdeas[selectedIdeaIndex]
         ? generatedIdeas[selectedIdeaIndex]
         : null,
+    selectionReason,
     chatHistory,
     refinedIdea: refinedIdeasData?.length ? refinedIdeasData : null,
   }

@@ -6,6 +6,9 @@ import {
   getRecentActivities,
   getStudentActivitiesTimeline,
   getRecentActivitiesByStudentId,
+  saveActivitySetWithBatch,
+  getLatestActivitySet,
+  ACTIVITY_SET_KEYS,
 } from './activityStorage.js'
 import { requestChildWorkbenchFlush } from './workbenchFlush.js'
 
@@ -621,6 +624,186 @@ export async function saveStudentWorkbenchToCloud(iframeWindow) {
   await requestChildWorkbenchFlush(iframeWindow)
   await persistLocalWorkbenchToFirebase()
 }
+
+/* -------------------------------------------------------------------------- */
+/*  통합 활동 세트(전체 저장 / 페이지 로드 시 일괄 복원)                       */
+/* -------------------------------------------------------------------------- */
+
+const SEED_DRAFT_KEY = 'pro10-seed-draft'
+const INVENTION_SPEC_DRAFT_KEY = 'myInventionSpecDraft'
+const ANALYSIS_LOCAL_KEY = 'analysisData'
+const REFLECTION_LOCAL_KEY = 'studentReflectionDraft'
+
+function parseJsonOrNull(raw) {
+  if (typeof raw !== 'string' || !raw.trim()) return null
+  try {
+    return JSON.parse(raw)
+  } catch {
+    return null
+  }
+}
+
+/**
+ * 각 활동 카드의 현재 localStorage 드래프트를 한 객체로 묶습니다.
+ * (전체 저장 직전에 iframe flush 가 끝난 뒤 호출해야 최신 상태가 잡힙니다.)
+ *
+ * @returns {{ seed: object|null, analysis: object|null, idea: object|null, drawing: object|null, inventionSpec: object|null, reflection: object|null }}
+ */
+export function collectLocalActivitySet() {
+  const seed = parseJsonOrNull(localStorage.getItem(SEED_DRAFT_KEY))
+
+  let analysis = parseJsonOrNull(localStorage.getItem(ANALYSIS_LOCAL_KEY))
+  if (analysis && typeof analysis === 'object') {
+    try {
+      const extracted = localStorage.getItem('extractedText')
+      if (typeof extracted === 'string' && extracted.trim() && !analysis.extractedTextSnapshot) {
+        analysis = {
+          ...analysis,
+          extractedTextSnapshot: extracted.slice(0, 450_000),
+        }
+      }
+    } catch {
+      /* ignore */
+    }
+  }
+
+  const idea = parseJsonOrNull(localStorage.getItem(IDEA_RESTORE_KEY))
+
+  let drawing = null
+  try {
+    const img = localStorage.getItem(DRAWING_RESTORE_KEY)
+    if (typeof img === 'string' && img.startsWith('data:')) {
+      drawing = { image: img, savedAt: new Date().toISOString() }
+    }
+  } catch {
+    /* ignore */
+  }
+
+  const inventionSpec = parseJsonOrNull(localStorage.getItem(INVENTION_SPEC_DRAFT_KEY))
+  const reflection = parseJsonOrNull(localStorage.getItem(REFLECTION_LOCAL_KEY))
+
+  return { seed, analysis, idea, drawing, inventionSpec, reflection }
+}
+
+/**
+ * 통합 활동 세트를 localStorage 에 반영합니다. (각 활동 페이지가 다음에 열릴 때 자동 복원되도록.)
+ *
+ * @param {Record<string, unknown> | null | undefined} set
+ * @returns {Promise<string[]>} 적용된 카드 키 목록
+ */
+export async function applyActivitySetToLocal(set) {
+  if (!set || typeof set !== 'object') return []
+
+  const applied = []
+
+  if (set.seed && typeof set.seed === 'object') {
+    try {
+      localStorage.setItem(SEED_DRAFT_KEY, JSON.stringify(set.seed))
+      applied.push('seed')
+    } catch (e) {
+      console.warn('seed 복원 실패:', e)
+    }
+  }
+
+  if (set.analysis && typeof set.analysis === 'object') {
+    try {
+      await applyAnalysisSnapshotToLocal(set.analysis)
+      applied.push('analysis')
+    } catch (e) {
+      console.warn('analysis 복원 실패:', e)
+    }
+  }
+
+  if (set.idea && typeof set.idea === 'object') {
+    try {
+      localStorage.setItem(IDEA_RESTORE_KEY, JSON.stringify(set.idea))
+      applied.push('idea')
+    } catch (e) {
+      console.warn('idea 복원 실패:', e)
+    }
+  } else {
+    localStorage.removeItem(IDEA_RESTORE_KEY)
+  }
+
+  if (set.drawing && typeof set.drawing === 'object' && typeof set.drawing.image === 'string' && set.drawing.image.startsWith('data:')) {
+    try {
+      localStorage.setItem(DRAWING_RESTORE_KEY, set.drawing.image)
+      applied.push('drawing')
+    } catch (e) {
+      console.warn('drawing 복원 실패:', e)
+    }
+  } else {
+    localStorage.removeItem(DRAWING_RESTORE_KEY)
+  }
+
+  if (set.inventionSpec && typeof set.inventionSpec === 'object') {
+    try {
+      localStorage.setItem(INVENTION_SPEC_DRAFT_KEY, JSON.stringify(set.inventionSpec))
+      applied.push('inventionSpec')
+    } catch (e) {
+      console.warn('inventionSpec 복원 실패:', e)
+    }
+  }
+
+  if (set.reflection && typeof set.reflection === 'object') {
+    try {
+      localStorage.setItem(REFLECTION_LOCAL_KEY, JSON.stringify(set.reflection))
+      applied.push('reflection')
+    } catch (e) {
+      console.warn('reflection 복원 실패:', e)
+    }
+  }
+
+  return applied
+}
+
+/**
+ * 대시보드 하단의 [전체 저장] 버튼이 호출하는 메인 동작.
+ * 열려 있는 iframe 내용을 먼저 localStorage 로 반영한 뒤, 전체 카드 데이터를 writeBatch 로 한 번에 저장합니다.
+ *
+ * @param {Window | null | undefined} iframeWindow — `#activity-frame`의 contentWindow
+ * @returns {Promise<{ ok: boolean; savedKeys: string[]; id?: string; reason?: string }>}
+ */
+export async function saveAllActivitiesWithBatch(iframeWindow) {
+  if (!localStorage.getItem('userId')) {
+    return { ok: false, savedKeys: [], reason: 'not_logged_in' }
+  }
+
+  try {
+    await requestChildWorkbenchFlush(iframeWindow)
+  } catch {
+    /* flush 실패해도 저장 단계는 진행 */
+  }
+
+  const activitySet = collectLocalActivitySet()
+  const result = await saveActivitySetWithBatch(activitySet)
+  if (!result) {
+    return { ok: false, savedKeys: [], reason: 'empty' }
+  }
+  return { ok: true, id: result.id, savedKeys: result.savedKeys }
+}
+
+/**
+ * 페이지 로드 시 가장 최근에 저장된 활동 세트를 한 번에 읽어 모든 카드(local 드래프트)에 채워 넣습니다.
+ *
+ * @returns {Promise<{ hadAny: boolean; appliedKeys: string[]; timestamp?: Date; id?: string }>}
+ */
+export async function loadLatestActivitySetAndApply() {
+  const latest = await getLatestActivitySet()
+  if (!latest || !latest.set) {
+    return { hadAny: false, appliedKeys: [] }
+  }
+  const appliedKeys = await applyActivitySetToLocal(latest.set)
+  return {
+    hadAny: appliedKeys.length > 0,
+    appliedKeys,
+    timestamp: latest.timestamp,
+    id: latest.id,
+  }
+}
+
+/** 외부에서 카드 키 상수에 쉽게 접근 가능하도록 재공개 */
+export { ACTIVITY_SET_KEYS }
 
 /**
  * 최종 활동 보고서 PDF 생성 (reflection 포함)

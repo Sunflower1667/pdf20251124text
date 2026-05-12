@@ -37,6 +37,7 @@ export default defineConfig(({ mode }) => {
                 student2: resolve(__dirname, 'student2.html'),
                 inventionSpec: resolve(__dirname, 'invention-spec.html'),
                 idea: resolve(__dirname, 'idea.html'),
+                seed: resolve(__dirname, 'seed.html'),
                 reflection: resolve(__dirname, 'reflection.html'),
                 teacher: resolve(__dirname, 'teacher.html'),
                 drawing: resolve(__dirname, 'drawing.html'),
