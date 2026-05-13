@@ -1,8 +1,11 @@
 import './idea.css'
 import { jsPDF } from 'jspdf'
 import html2canvas from 'html2canvas'
+import { Chart, RadarController, RadialLinearScale, PointElement, LineElement, Filler, Tooltip, Legend } from 'chart.js'
 import { listenForWorkbenchFlushRequest } from './workbenchFlush.js'
 import { collectRefinedSections, stripMarkdownBoldMarkers } from './refinedIdeaSections.js'
+
+Chart.register(RadarController, RadialLinearScale, PointElement, LineElement, Filler, Tooltip, Legend)
 
 const OPENAI_URL = import.meta.env.VITE_OPENAI_API_URL || 'https://api.openai.com/v1/responses'
 const OPENAI_MODEL = import.meta.env.VITE_OPENAI_MODEL || 'gpt-4o-mini'
@@ -133,6 +136,40 @@ if (!analysisData || Object.keys(analysisData).length === 0) {
         <div id="ideas-container" class="ideas-container"></div>
       </section>
 
+      <section class="idea-diagnosis" id="idea-diagnosis" style="display: none;">
+        <div class="section-header">
+          <h2>발명 아이디어 비교 진단</h2>
+          <p class="section-description">
+            세 아이디어를 <strong>참신함·쓸모·현실성·지속가능성</strong> 4가지 기준으로 1~5점 슬라이더로 평가해 보세요.
+            점수를 조절하면 오른쪽 레이더 차트가 실시간으로 바뀌고, 모든 평가가 끝나면 AI 데이터 분석가가 비교 코멘트를 들려줘요.
+            마지막으로 <strong>[PICK]</strong> 버튼으로 가장 마음에 드는 아이디어 하나를 골라 주세요.
+          </p>
+        </div>
+
+        <div class="diagnosis-layout">
+          <div id="diagnosis-cards" class="diagnosis-cards"></div>
+          <div class="diagnosis-chart-wrap">
+            <h3 class="diagnosis-chart-title">📊 4가지 기준 비교 차트</h3>
+            <div class="diagnosis-chart-box">
+              <canvas id="diagnosis-radar"></canvas>
+            </div>
+          </div>
+        </div>
+
+        <div class="diagnosis-analysis" id="diagnosis-analysis">
+          <div class="diagnosis-analysis-head">
+            <span class="diagnosis-analyst-tag">🤖 데이터 분석가</span>
+            <h3>AI 비교 분석 코멘트</h3>
+          </div>
+          <div class="diagnosis-analysis-body" id="diagnosis-analysis-body">
+            <p class="diagnosis-analysis-placeholder">세 아이디어를 모두 평가하면 비교 분석 코멘트가 여기 표시돼요.</p>
+          </div>
+          <div class="diagnosis-analysis-actions">
+            <button id="rerun-analysis-btn" type="button" class="diagnosis-analysis-btn" disabled>비교 분석 다시 받기</button>
+          </div>
+        </div>
+      </section>
+
       <section class="chat-section" id="chat-section" style="display: none;">
         <div class="section-header">
           <h2>[2단계: 발명 아이디어 구체화하기]</h2>
@@ -187,8 +224,30 @@ const refinedIdeasSection = document.querySelector('#refined-ideas')
 const refinedCards = document.querySelector('#refined-cards')
 const saveResultBtn = document.querySelector('#save-result-btn')
 const keywordInput = document.querySelector('#keyword-input')
+const diagnosisSection = document.querySelector('#idea-diagnosis')
+const diagnosisCards = document.querySelector('#diagnosis-cards')
+const diagnosisAnalysisBody = document.querySelector('#diagnosis-analysis-body')
+const rerunAnalysisBtn = document.querySelector('#rerun-analysis-btn')
 
 const MAX_CHAT_TURNS = 10
+
+const DIAGNOSIS_CRITERIA = [
+  { key: 'novelty', label: '참신함', desc: '얼마나 새로운 아이디어인가요?' },
+  { key: 'usefulness', label: '쓸모', desc: '실제로 쓸모가 있나요?' },
+  { key: 'feasibility', label: '현실성', desc: '현실적으로 만들 수 있나요?' },
+  { key: 'sustainability', label: '지속가능성', desc: '오래 쓰이고 환경에도 좋을까요?' },
+]
+
+const IDEA_COLORS = [
+  { name: '파랑', stroke: 'rgba(37, 99, 235, 1)', fill: 'rgba(37, 99, 235, 0.22)', point: 'rgba(37, 99, 235, 1)' },
+  { name: '초록', stroke: 'rgba(22, 163, 74, 1)', fill: 'rgba(22, 163, 74, 0.22)', point: 'rgba(22, 163, 74, 1)' },
+  { name: '주황', stroke: 'rgba(234, 88, 12, 1)', fill: 'rgba(234, 88, 12, 0.22)', point: 'rgba(234, 88, 12, 1)' },
+]
+
+let diagnosisScores = []
+let diagnosisAnalysisText = ''
+let radarChart = null
+let analysisDebounceTimer = null
 
 /** 학생 대시보드(iframe 부모)에 아이디어 단계 표시 동기화 */
 function notifyParentIdeaStep(step) {
@@ -422,6 +481,12 @@ if (refineIdeaBtn) {
   })
 }
 
+if (rerunAnalysisBtn) {
+  rerunAnalysisBtn.addEventListener('click', () => {
+    void requestDiagnosisAnalysis({ silent: false })
+  })
+}
+
 if (saveResultBtn) {
   saveResultBtn.addEventListener('click', async () => {
     if (refinedIdeasData.length === 0) {
@@ -635,6 +700,312 @@ function displayIdeas(ideas) {
       selectIdea(index, ideas[index])
     })
   })
+
+  renderDiagnosisSection(ideas)
+}
+
+function defaultDiagnosisScores(count) {
+  return Array.from({ length: count }, () => ({
+    novelty: 3,
+    usefulness: 3,
+    feasibility: 3,
+    sustainability: 3,
+  }))
+}
+
+function renderDiagnosisSection(ideas) {
+  if (!diagnosisSection || !diagnosisCards || !Array.isArray(ideas) || ideas.length === 0) {
+    if (diagnosisSection) diagnosisSection.style.display = 'none'
+    return
+  }
+
+  diagnosisScores = defaultDiagnosisScores(ideas.length)
+  diagnosisAnalysisText = ''
+  if (diagnosisAnalysisBody) {
+    diagnosisAnalysisBody.innerHTML =
+      '<p class="diagnosis-analysis-placeholder">세 아이디어를 모두 평가하면 비교 분석 코멘트가 여기 표시돼요. 슬라이더를 1번이라도 움직여 보세요!</p>'
+  }
+  if (rerunAnalysisBtn) rerunAnalysisBtn.disabled = true
+
+  diagnosisCards.innerHTML = ideas
+    .map((idea, index) => {
+      const color = IDEA_COLORS[index] || IDEA_COLORS[0]
+      const slidersHtml = DIAGNOSIS_CRITERIA.map(
+        (c) => `
+          <div class="diagnosis-slider-row" data-criterion="${c.key}">
+            <div class="diagnosis-slider-label">
+              <span class="diagnosis-slider-name">${c.label}</span>
+              <span class="diagnosis-slider-value" data-value-for="${index}-${c.key}">3</span>
+            </div>
+            <input
+              type="range"
+              min="1"
+              max="5"
+              step="1"
+              value="3"
+              class="diagnosis-slider"
+              data-idea-index="${index}"
+              data-criterion="${c.key}"
+              aria-label="아이디어 ${index + 1} ${c.label} 점수"
+            />
+            <p class="diagnosis-slider-desc">${c.desc}</p>
+          </div>
+        `
+      ).join('')
+
+      return `
+        <article class="diagnosis-card" data-index="${index}" style="--idea-color: ${color.stroke};">
+          <header class="diagnosis-card-head">
+            <span class="diagnosis-card-badge" style="background:${color.stroke}">아이디어 ${index + 1}</span>
+            <h3 class="diagnosis-card-title">${sanitize(idea.name || `아이디어 ${index + 1}`)}</h3>
+          </header>
+          <p class="diagnosis-card-desc">${sanitize(idea.description || '')}</p>
+          <div class="diagnosis-sliders">
+            ${slidersHtml}
+          </div>
+          <button type="button" class="diagnosis-pick-btn" data-index="${index}" style="background:${color.stroke}">
+            [PICK] 이 아이디어로 결정!
+          </button>
+        </article>
+      `
+    })
+    .join('')
+
+  diagnosisSection.style.display = 'block'
+
+  diagnosisCards.querySelectorAll('.diagnosis-slider').forEach((slider) => {
+    slider.addEventListener('input', handleSliderInput)
+    slider.addEventListener('change', handleSliderChange)
+  })
+
+  diagnosisCards.querySelectorAll('.diagnosis-pick-btn').forEach((btn) => {
+    btn.addEventListener('click', (e) => {
+      const index = parseInt(e.currentTarget.dataset.index, 10)
+      if (Number.isNaN(index)) return
+      pickIdea(index)
+    })
+  })
+
+  renderRadarChart(ideas)
+}
+
+function handleSliderInput(e) {
+  const ideaIndex = parseInt(e.target.dataset.ideaIndex, 10)
+  const criterion = e.target.dataset.criterion
+  const value = parseInt(e.target.value, 10)
+  if (Number.isNaN(ideaIndex) || !criterion || Number.isNaN(value)) return
+
+  if (!diagnosisScores[ideaIndex]) diagnosisScores[ideaIndex] = { novelty: 3, usefulness: 3, feasibility: 3, sustainability: 3 }
+  diagnosisScores[ideaIndex][criterion] = value
+
+  const valueEl = diagnosisCards?.querySelector(`[data-value-for="${ideaIndex}-${criterion}"]`)
+  if (valueEl) valueEl.textContent = String(value)
+
+  updateRadarChart()
+  if (rerunAnalysisBtn) rerunAnalysisBtn.disabled = false
+}
+
+function handleSliderChange() {
+  if (analysisDebounceTimer) clearTimeout(analysisDebounceTimer)
+  analysisDebounceTimer = setTimeout(() => {
+    void requestDiagnosisAnalysis({ silent: true })
+  }, 900)
+}
+
+function renderRadarChart(ideas) {
+  const canvas = document.getElementById('diagnosis-radar')
+  if (!canvas) return
+
+  if (radarChart) {
+    radarChart.destroy()
+    radarChart = null
+  }
+
+  const datasets = ideas.map((idea, index) => {
+    const color = IDEA_COLORS[index] || IDEA_COLORS[0]
+    const scores = diagnosisScores[index] || { novelty: 3, usefulness: 3, feasibility: 3, sustainability: 3 }
+    return {
+      label: `아이디어 ${index + 1}: ${idea.name || ''}`.trim(),
+      data: DIAGNOSIS_CRITERIA.map((c) => scores[c.key] ?? 3),
+      backgroundColor: color.fill,
+      borderColor: color.stroke,
+      pointBackgroundColor: color.point,
+      pointBorderColor: '#fff',
+      borderWidth: 2,
+      pointRadius: 4,
+    }
+  })
+
+  radarChart = new Chart(canvas, {
+    type: 'radar',
+    data: {
+      labels: DIAGNOSIS_CRITERIA.map((c) => c.label),
+      datasets,
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: { duration: 250 },
+      plugins: {
+        legend: {
+          position: 'bottom',
+          labels: { boxWidth: 14, font: { size: 12 } },
+        },
+        tooltip: {
+          callbacks: {
+            label: (ctx) => `${ctx.dataset.label}: ${ctx.formattedValue}점`,
+          },
+        },
+      },
+      scales: {
+        r: {
+          min: 0,
+          max: 5,
+          ticks: { stepSize: 1, color: '#64748b', backdropColor: 'transparent' },
+          pointLabels: { font: { size: 13, weight: '600' }, color: '#0f172a' },
+          grid: { color: 'rgba(148, 163, 184, 0.4)' },
+          angleLines: { color: 'rgba(148, 163, 184, 0.4)' },
+        },
+      },
+    },
+  })
+}
+
+function updateRadarChart() {
+  if (!radarChart) return
+  diagnosisScores.forEach((scores, idx) => {
+    if (!radarChart.data.datasets[idx]) return
+    radarChart.data.datasets[idx].data = DIAGNOSIS_CRITERIA.map((c) => scores[c.key] ?? 3)
+  })
+  radarChart.update()
+}
+
+async function requestDiagnosisAnalysis({ silent = false } = {}) {
+  if (!Array.isArray(generatedIdeas) || generatedIdeas.length === 0) return
+  if (!diagnosisAnalysisBody) return
+
+  const apiKey = import.meta.env.VITE_OPENAI_API_KEY
+  if (!apiKey) {
+    if (!silent) alert('.env 파일에 VITE_OPENAI_API_KEY를 설정해 주세요.')
+    return
+  }
+
+  diagnosisAnalysisBody.innerHTML =
+    '<p class="diagnosis-analysis-loading">🧠 데이터 분석가가 세 아이디어를 비교 분석 중이에요...</p>'
+
+  if (rerunAnalysisBtn) {
+    rerunAnalysisBtn.disabled = true
+    rerunAnalysisBtn.textContent = '분석 중...'
+  }
+
+  try {
+    const analysis = await fetchDiagnosisAnalysis(apiKey, generatedIdeas, diagnosisScores)
+    diagnosisAnalysisText = analysis
+    diagnosisAnalysisBody.innerHTML = `
+      <p class="diagnosis-analysis-text">${sanitize(analysis).replace(/\n/g, '<br>')}</p>
+    `
+  } catch (error) {
+    console.error('비교 분석 오류:', error)
+    diagnosisAnalysisBody.innerHTML = `
+      <p class="diagnosis-analysis-error">비교 분석 코멘트를 가져오지 못했어요. 잠시 후 다시 시도해 주세요.</p>
+    `
+  } finally {
+    if (rerunAnalysisBtn) {
+      rerunAnalysisBtn.disabled = false
+      rerunAnalysisBtn.textContent = '비교 분석 다시 받기'
+    }
+  }
+}
+
+async function fetchDiagnosisAnalysis(apiKey, ideas, scores) {
+  const ideaLines = ideas
+    .map((idea, idx) => {
+      const s = scores[idx] || {}
+      const colorName = IDEA_COLORS[idx]?.name || ''
+      return `- 아이디어 ${idx + 1} (${colorName} 레이어) "${idea.name || ''}": ${idea.description || ''}\n  점수 → 참신함 ${s.novelty ?? '-'} / 쓸모 ${s.usefulness ?? '-'} / 현실성 ${s.feasibility ?? '-'} / 지속가능성 ${s.sustainability ?? '-'}`
+    })
+    .join('\n')
+
+  const prompt = `너는 친절한 데이터 분석가야. 중학생이 발명 아이디어 3개를 4가지 기준(참신함, 쓸모, 현실성, 지속가능성)에 대해 1~5점 슬라이더로 평가한 결과를 보고, 학생이 이해하기 쉽게 비교 분석 코멘트를 작성해 줘.
+
+[규칙]
+- 어투는 해요체("~예요", "~어요", "~네요")로 통일.
+- 4~6문장 정도로 간결하게.
+- "아이디어 1은 창의성이 높지만 실현 가능성이 낮고, 아이디어 2는 전체적으로 밸런스가 좋아요!" 같은 식으로 각 아이디어의 강점/약점을 비교해 줘.
+- 어떤 아이디어가 어떤 상황에서 좋은지 살짝 추천도 곁들여 줘.
+- 점수가 모두 동일하다면 "더 솔직하게 평가해 보세요"라고 부드럽게 안내해 줘.
+- JSON이나 머리말·꼬리말 없이 순수한 한국어 텍스트만 출력해.
+
+[아이디어 및 점수]
+${ideaLines}`
+
+  const response = await fetch(OPENAI_URL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
+      model: OPENAI_MODEL,
+      input: [{ role: 'user', content: [{ type: 'input_text', text: prompt }] }],
+    }),
+  })
+
+  if (!response.ok) {
+    const payload = await safeJson(response)
+    throw new Error(payload?.error?.message || `API 오류 (${response.status})`)
+  }
+
+  const result = await response.json()
+  const aiText = extractAiText(result)
+  if (!aiText) throw new Error('AI 응답을 읽을 수 없습니다.')
+  return stripMarkdownBoldMarkers(aiText.trim())
+}
+
+function buildIdeaIdentifier(idea, index) {
+  if (!idea) return `idea-${index + 1}`
+  if (idea.id) return String(idea.id)
+  const trizId = idea.trizPrinciple?.id != null ? `triz${idea.trizPrinciple.id}` : ''
+  const namePart = (idea.name || `아이디어${index + 1}`).replace(/\s+/g, '_').slice(0, 40)
+  return [`idea-${index + 1}`, trizId, namePart].filter(Boolean).join('-')
+}
+
+async function pickIdea(index) {
+  if (!Array.isArray(generatedIdeas) || !generatedIdeas[index]) return
+  const idea = generatedIdeas[index]
+  const scores = diagnosisScores[index] || { novelty: 3, usefulness: 3, feasibility: 3, sustainability: 3 }
+  const ideaId = buildIdeaIdentifier(idea, index)
+
+  diagnosisCards?.querySelectorAll('.diagnosis-card').forEach((card) => {
+    card.classList.toggle('is-picked', parseInt(card.dataset.index, 10) === index)
+  })
+
+  selectIdea(index, idea)
+
+  try {
+    const { saveStudentActivity } = await import('./activityStorage.js')
+    await saveStudentActivity('idea', {
+      ideas: generatedIdeas,
+      keywords: lastKeywords,
+      selectedIdea: idea,
+      selectedIdeaId: ideaId,
+      selectionReason: selectionReason,
+      diagnosis: {
+        criteria: DIAGNOSIS_CRITERIA.map((c) => c.key),
+        scores: diagnosisScores,
+        pickedIdeaId: ideaId,
+        pickedIndex: index,
+        pickedScores: scores,
+        comparisonAnalysis: diagnosisAnalysisText || null,
+      },
+      chatHistory: chatHistory,
+      refinedIdea: refinedIdeasData.length > 0 ? refinedIdeasData[refinedIdeasData.length - 1] : null,
+    })
+  } catch (error) {
+    console.error('PICK 저장 오류:', error)
+  }
+
+  flushStudentIdeaSessionToStorage()
 }
 
 function selectIdea(index, idea) {

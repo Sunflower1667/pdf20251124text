@@ -20,7 +20,6 @@ app.innerHTML = `
           <button id="resume-activities-btn" class="action-btn-primary">과거 활동 불러오기</button>
           <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
             <button id="view-past-btn" class="action-btn-secondary" type="button">과거 활동 보기</button>
-            <button id="save-workbench-btn" class="action-btn-secondary" type="button">저장하기</button>
             <div class="user-info" id="user-info" style="display: none;">
               <div class="user-profile">
                 <img id="user-photo" src="" alt="프로필" class="user-avatar" onerror="this.style.display='none'">
@@ -69,7 +68,6 @@ const backBtn = document.querySelector('#back-btn')
 const finishActivityBtn = document.querySelector('#finish-activity-btn')
 const resumeActivitiesBtn = document.querySelector('#resume-activities-btn')
 const viewPastBtn = document.querySelector('#view-past-btn')
-const saveWorkbenchBtn = document.querySelector('#save-workbench-btn')
 const saveAllBtn = document.querySelector('#save-all-btn')
 const saveAllStatus = document.querySelector('#save-all-status')
 const activityNavBtns = document.querySelectorAll('.activity-nav-btn')
@@ -343,32 +341,6 @@ function showCompletionMessage() {
   
   overlay.addEventListener('click', () => {
     window.location.href = 'index.html'
-  })
-}
-
-// 저장하기 — 열려 있는 활동 화면을 localStorage에 맞춘 뒤, 모든 단계 데이터를 Firebase에 동기화
-if (saveWorkbenchBtn) {
-  saveWorkbenchBtn.addEventListener('click', async () => {
-    if (!localStorage.getItem('userId')) {
-      alert('로그인 후 저장할 수 있습니다.')
-      return
-    }
-    saveWorkbenchBtn.disabled = true
-    const prevLabel = saveWorkbenchBtn.textContent
-    saveWorkbenchBtn.textContent = '저장 중...'
-    try {
-      const { saveStudentWorkbenchToCloud } = await import('./studentActivity.js')
-      await saveStudentWorkbenchToCloud(activityFrame?.contentWindow)
-      alert(
-        '현재 이 기기에 있는 활동 내용을 클라우드에 저장했습니다.\n(명세서 탐색·아이디어·그림·발명 명세서 등 저장된 항목이 반영됩니다. 지금 보고 있는 활동 창의 최신 내용도 포함됩니다.)'
-      )
-    } catch (error) {
-      console.error('저장하기 오류:', error)
-      alert('저장 중 오류가 발생했습니다. 네트워크를 확인 후 다시 시도해 주세요.')
-    } finally {
-      saveWorkbenchBtn.disabled = false
-      saveWorkbenchBtn.textContent = prevLabel
-    }
   })
 }
 
