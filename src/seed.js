@@ -298,19 +298,23 @@ async function callOpenAiForKeywords(interests, discomfort) {
     throw new Error('AI 키가 설정되지 않았어요. (VITE_OPENAI_API_KEY)')
   }
 
-  const prompt = `너는 초등학생의 발명 아이디어 코치야. 학생이 고른 관심사와 불편함을 보고, KIPRIS(한국 특허 검색 서비스)에서 비슷한 특허·실용신안을 찾기 위한 핵심 키워드 3개를 추천해 줘.
+  const prompt = `너는 중학생의 발명 아이디어 코치야. 학생이 고른 관심사와 불편함을 보고, KIPRIS(한국 특허 검색 서비스)에서 비슷한 특허·실용신안을 찾기 위한 핵심 키워드 3개를 추천해 줘.
 
 [학생 정보]
 - 관심사: ${interests.length ? interests.join(', ') : '(선택하지 않음)'}
 - 불편함: ${discomfort || '(작성하지 않음)'}
 
-[추천 규칙]
-- 키워드는 한국어로, 명사 위주로 1~2단어로 짧게.
+[추천 규칙 — 매우 중요]
+- 키워드와 설명 모두 반드시 "한글"로만 작성해. 한자(漢字), 일본어, 영어, 특수문자는 절대 사용하지 마.
+  · 예시 (잘못된 예): "雨傘", "rain umbrella", "雨가리개"
+  · 예시 (좋은 예): "우산", "방수가방", "어깨끈"
+- 키워드는 명사 위주로 1~2단어, 5~10자 이내로 짧게.
+- 중학생이 직접 입력해서 검색하기 쉬운, 친숙하고 일상적인 단어로 골라줘.
 - 너무 일반적인 단어(예: "물건", "사람")는 피하고, 발명·기술과 연결되는 단어로.
-- 각 키워드마다 "왜 이 키워드를 추천하는지" 한 문장으로 친절하게 설명.
+- 각 키워드마다 "왜 이 키워드를 추천하는지" 중학생도 이해하기 쉬운 말로 한 문장 설명. 설명에도 한자를 쓰지 마.
 - 정확히 3개를 추천.
 
-[응답 형식 — 아래 JSON만 출력]
+[응답 형식 — 아래 JSON만 출력, 한글만 사용]
 {
   "keywords": [
     { "term": "키워드1", "reason": "추천 이유 한 문장" },
@@ -353,9 +357,20 @@ async function callOpenAiForKeywords(interests, discomfort) {
     .filter((k) => k && typeof k.term === 'string' && k.term.trim())
     .slice(0, 3)
     .map((k) => ({
-      term: String(k.term).trim(),
-      reason: typeof k.reason === 'string' ? k.reason.trim() : '',
+      term: cleanKoreanText(k.term),
+      reason: cleanKoreanText(typeof k.reason === 'string' ? k.reason : ''),
     }))
+    .filter((k) => k.term)
+}
+
+function cleanKoreanText(text) {
+  if (text == null) return ''
+  let cleaned = String(text)
+  cleaned = cleaned.replace(/[\u3400-\u4DBF\u4E00-\u9FFF\uF900-\uFAFF]/g, '')
+  cleaned = cleaned.replace(/[\u3040-\u309F\u30A0-\u30FF\u31F0-\u31FF]/g, '')
+  cleaned = cleaned.replace(/[（）()]/g, ' ')
+  cleaned = cleaned.replace(/\s+/g, ' ').trim()
+  return cleaned
 }
 
 function extractAiText(result) {
