@@ -9,6 +9,22 @@ let googleProvider = null
 // DOM이 로드된 후 실행
 let appEl = null
 
+// 공통 푸터 (개인정보처리방침)
+const FOOTER_HTML = `
+  <footer class="site-footer">
+    <p class="footer-info">
+      <a href="privacy.html" target="_blank" rel="noopener noreferrer" class="footer-link">[ 개인정보처리방침 ]</a>
+      <span class="footer-sep">|</span>
+      <span>개발/관리자: 교사 김정빈</span>
+      <span class="footer-sep">|</span>
+      <span>소속: 구로중학교</span>
+      <span class="footer-sep">|</span>
+      <span>문의: kjb0335@sen.go.kr</span>
+    </p>
+    <p class="footer-copy">Copyright © 2026 김정빈. All Rights Reserved.</p>
+  </footer>
+`
+
 // 로그인 전 UI
 const renderLoginView = () => {
   if (!appEl) {
@@ -20,7 +36,7 @@ const renderLoginView = () => {
     <div class="main-container">
       <div class="main-card">
         <header>
-          <h1>발명 아이디어 프로젝트 도우미</h1>
+          <h1>스마트 팅커(Smart Tinker)</h1>
           <p class="subtitle">명세서 분석부터 아이디어 창출까지</p>
         </header>
 
@@ -38,6 +54,7 @@ const renderLoginView = () => {
           <div id="error-message" class="error-message" style="display: none;"></div>
         </div>
       </div>
+      ${FOOTER_HTML}
     </div>
   `
 
@@ -58,7 +75,7 @@ const renderMainView = (user) => {
     <div class="main-container">
       <div class="main-card">
         <header>
-          <h1>발명 아이디어 프로젝트 도우미</h1>
+          <h1>스마트 팅커(Smart Tinker)</h1>
           <p class="subtitle">명세서 분석부터 아이디어 창출까지</p>
         </header>
 
@@ -91,6 +108,7 @@ const renderMainView = (user) => {
           </button>
         </div>
       </div>
+      ${FOOTER_HTML}
     </div>
   `
 

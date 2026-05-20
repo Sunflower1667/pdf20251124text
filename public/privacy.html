@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>개인정보처리방침 | 스마트 팅커(발명 도우미 애플리케이션)</title>
+    <style>
+      :root {
+        font-family: 'Pretendard', 'SUIT', 'Noto Sans KR', system-ui, -apple-system,
+          BlinkMacSystemFont, sans-serif;
+        color: #0f172a;
+        line-height: 1.7;
+        -webkit-font-smoothing: antialiased;
+      }
+
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        background: radial-gradient(circle at top, #f8fafc, #e2e8f0);
+        padding: 40px 20px;
+      }
+
+      .privacy-container {
+        max-width: 880px;
+        margin: 0 auto;
+        background: #ffffff;
+        border-radius: 20px;
+        padding: 48px clamp(24px, 5vw, 56px);
+        box-shadow: 0 25px 65px rgba(15, 23, 42, 0.12);
+      }
+
+      h3 {
+        margin: 0 0 16px;
+        font-size: clamp(1.5rem, 3.5vw, 2rem);
+        font-weight: 700;
+        color: #0f172a;
+        padding-bottom: 16px;
+        border-bottom: 2px solid #e2e8f0;
+      }
+
+      h4 {
+        margin: 32px 0 12px;
+        font-size: 1.15rem;
+        font-weight: 700;
+        color: #1e293b;
+      }
+
+      p {
+        margin: 0 0 12px;
+        color: #334155;
+        font-size: 0.95rem;
+      }
+
+      ul {
+        margin: 0 0 12px;
+        padding-left: 22px;
+        color: #334155;
+        font-size: 0.95rem;
+      }
+
+      li {
+        margin-bottom: 6px;
+      }
+
+      strong {
+        color: #0f172a;
+        font-weight: 700;
+      }
+
+      code {
+        background: #f1f5f9;
+        padding: 2px 6px;
+        border-radius: 6px;
+        font-size: 0.9em;
+        color: #1e293b;
+        font-family: 'D2Coding', 'Consolas', monospace;
+      }
+
+      .privacy-footer {
+        margin-top: 40px;
+        padding-top: 20px;
+        border-top: 1px solid #e2e8f0;
+        text-align: center;
+        color: #64748b;
+        font-size: 0.85rem;
+      }
+
+      @media (max-width: 600px) {
+        body {
+          padding: 16px;
+        }
+
+        .privacy-container {
+          padding: 28px 20px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="privacy-container">
+      <h3>스마트 팅커(발명 도우미 애플리케이션) 개인정보처리방침</h3>
+      <p><strong>시행일: 2026년 3월 2일</strong></p>
+
+      <p>본 개인정보처리방침은 교사 김정빈이 개발한 '스마트 팅커(발명 도우미 애플리케이션)'(이하 "앱")의 서비스 이용 과정에서 처리되는 학생 및 이용자의 개인정보 항목, 목적, 보관 및 파기 방식 등을 안내합니다. 본 앱은 순수 교육 목적으로 개발되었으며, 학생들의 개인정보 최소처리를 원칙으로 합니다.</p>
+
+      <h4>1. 수집 및 처리하는 개인정보 항목</h4>
+      <p>앱은 학생 중심의 맞춤형 발명 교육 프로세스 및 교사 실시간 피드백 기능을 위해 다음의 최소한의 정보만을 처리합니다.</p>
+      <ul>
+        <li><strong>사용자 식별 정보:</strong> 학생의 개인 또는 학교 발급 구글 e-mail 주소 (※ 학생의 실명, 전화번호, 주민등록번호 등 민감정보는 일체 수집하지 않습니다.)</li>
+        <li><strong>학습 활동 정보:</strong> 나의 관심사 데이터, 생활 속 문제 식별 및 명세서 작성 내용, TRIZ 원리 적용 가이드 기록 등 학생이 직접 입력한 학습 데이터</li>
+        <li><strong>시스템 로그:</strong> 로그인 및 로그아웃 데이터, 활동 전송 성공/실패 로그</li>
+      </ul>
+
+      <h4>2. 개인정보 처리 목적</h4>
+      <p>앱은 수집한 정보를 다음의 목적을 위해서만 처리하며, 목적 외의 용도로는 절대 사용하지 않습니다.</p>
+      <ul>
+        <li>중학교 기술·가정(발명 및 지식재산 단원) 교과 성취기준 달성을 위한 단계별 스캐폴딩 학습 프로세스 제공</li>
+        <li>학생별 발명 아이디어 프로젝트 진행 상황 저장 및 교사의 실시간 학습 모니터링·피드백 제공</li>
+      </ul>
+
+      <h4>3. 개인정보의 처리 및 저장 방식 (보안 조치)</h4>
+      <ul>
+        <li><strong>서버 연동 저장:</strong> 본 앱은 글로벌 클라우드 인프라 서비스인 Google Firebase(Firebase Auth 및 Cloud Firestore)의 보안 서버를 이용합니다.</li>
+        <li><strong>데이터 암호화:</strong> 모든 데이터는 전송 및 저장 시 표준 SSL 암호화 프로토콜(https://)을 통해 안전하게 처리되며, 외부의 비인증 사용자가 접근할 수 없도록 데이터베이스 규칙(Security Rules)을 통해 철저히 통제됩니다.</li>
+      </ul>
+
+      <h4>4. 개인정보의 제3자 제공 및 위탁</h4>
+      <p>본 앱은 학생의 개인정보를 원칙적으로 외부에 제공하거나 위탁하지 않습니다. 다만, 서비스 운영을 위한 기술적 인프라로 아래의 외부 시스템을 이용합니다.</p>
+      <ul>
+        <li><strong>이용 인프라:</strong> Google Firebase (Auth, Firestore)</li>
+        <li><strong>내용:</strong> 사용자가 로그인을 유지하고 학습 데이터를 저장하기 위한 클라우드 데이터베이스 공간 제공 (순수 시스템 인프라 용도로만 활용됨)</li>
+      </ul>
+
+      <h4>5. 개인정보의 보관 기간 및 파기 계획</h4>
+      <ul>
+        <li><strong>보관 기간:</strong> 해당 교육과정 및 수업 운영이 이루어지는 학기 중 동안만 한시적으로 보관됩니다.</li>
+        <li><strong>파기 절차 및 방식:</strong> 해당 관련 수업이 전면 종료되는 즉시 수집된 학생들의 학습 데이터, 이메일 식별 값 및 임시 계정은 데이터베이스에서 <strong>일괄 영구 삭제(파기)</strong>됩니다.</li>
+      </ul>
+
+      <h4>6. 이용자의 권리 및 행사 방법</h4>
+      <p>학생(이용자) 및 법정대리인은 언제든지 본인의 개인정보(이메일 및 학습 데이터)에 대한 열람, 정정, 삭제 및 처리 정지를 요청할 수 있습니다.</p>
+      <p><strong>행사 방법:</strong> 앱 내 로그아웃 기능을 이용하거나, 아래 명시된 교사(운영자) 이메일 창구로 연락해 주시면 지체 없이 파기 등의 필요한 조치를 취하고 결과를 안내해 드립니다.</p>
+
+      <h4>7. 만 14세 미만 아동의 개인정보 보호</h4>
+      <p>① 본 앱은 학교 교육과정 내 기술·가정 수업을 위한 교육용 도구로 제공되며, 데이터의 실질적인 수집 및 관리 주체는 해당 앱을 활용하는 학교 및 담당 교사입니다.</p>
+      <p>② 만 14세 미만 학생의 학습 참여 및 데이터 처리를 위해, 본 앱을 활용하는 담당 교사는 수업 실시 전 가정통신문, 학교 알리미 등을 통해 법정대리인으로부터 적법한 개인정보 수집·이용 동의를 사전에 일괄 확인 및 획득하여야 합니다.</p>
+
+      <h4>8. 개인정보 보호책임자 및 문의처</h4>
+      <p>앱 이용 중 발생하는 개인정보 관련 문의, 데이터 삭제 요청 등은 아래의 보호책임자에게 연락해 주시기 바랍니다.</p>
+      <ul>
+        <li><strong>보호책임자:</strong> 교사 김정빈</li>
+        <li><strong>소속 학교:</strong> 구로중학교 </li>
+        <li><strong>연락처(이메일):</strong> <code>kjb0335</code></li>
+      </ul>
+
+      <div class="privacy-footer">
+        Copyright © 2026 김정빈. All Rights Reserved.
+      </div>
+    </div>
+  </body>
+</html>

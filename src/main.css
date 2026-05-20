@@ -266,6 +266,47 @@ h1::before {
   color: #b91c1c;
 }
 
+.site-footer {
+  margin-top: 28px;
+  padding: 16px 12px 4px;
+  text-align: center;
+  color: #64748b;
+  font-size: 0.8rem;
+  line-height: 1.6;
+}
+
+.footer-info {
+  margin: 0 0 6px;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+  color: #475569;
+}
+
+.footer-sep {
+  color: #cbd5e1;
+}
+
+.footer-link {
+  color: #2563eb;
+  text-decoration: none;
+  font-weight: 600;
+  transition: color 150ms ease;
+}
+
+.footer-link:hover {
+  color: #1d4ed8;
+  text-decoration: underline;
+}
+
+.footer-copy {
+  margin: 0;
+  color: #94a3b8;
+  font-size: 0.75rem;
+}
+
 @media (max-width: 600px) {
   body {
     padding: 16px;
@@ -295,6 +336,18 @@ h1::before {
 
   .logout-btn {
     width: 100%;
+  }
+
+  .site-footer {
+    font-size: 0.72rem;
+  }
+
+  .footer-info {
+    gap: 6px;
+  }
+
+  .footer-sep {
+    display: none;
   }
 }
 
