@@ -28,21 +28,22 @@ export function mountStudentPdfAnalysis(rootEl, options = {}) {
     <section class="uploader">
       <label for="pdf-input" class="file-picker">
         <input id="pdf-input" type="file" accept="application/pdf" />
-        <span>PDF 파일 선택</span>
+        <span>발명 명세서 PDF 업로드</span>
       </label>
+      <button id="download-pdf-btn" type="button" class="pdf-download-btn" disabled>명세서 PDF 다운로드</button>
     </section>`
 
   const analysisSection = `
     <section class="analysis-panel">
       <div class="analysis-header">
         <div class="analysis-title-section">
-          <h2>명세서 분석</h2>
+          <h2>명세서 특징 요약정리 하기</h2>
           <button id="analyze-btn" type="button" disabled>명세서 분석하기</button>
         </div>
       </div>
       <p id="analysis-status" class="analysis-status">${escapeHtml(
         showCoachPanel
-          ? 'PDF를 올리고, 왼쪽에서 보조교사와 대화·생각 정리를 마친 뒤 여기서 [명세서 분석하기]를 눌러 요약을 확인해 보세요.'
+          ? 'PDF를 올리고, 왼쪽에서 보조교사와 대화한 뒤 오른쪽의 「내 생각 정리」를 마치고 여기서 [명세서 분석하기]를 눌러 요약을 확인해 보세요.'
           : 'PDF가 업로드 완료되면 분석을 할 수 있어요!'
       )}</p>
       <div id="analysis-grid" class="analysis-grid">
@@ -61,7 +62,7 @@ export function mountStudentPdfAnalysis(rootEl, options = {}) {
     <aside class="coach-panel" aria-label="발명 보조교사">
       <div class="coach-panel-header">
         <h2>발명 보조교사와 확인하기</h2>
-        <p class="coach-panel-desc">오른쪽에서 PDF를 올린 뒤, 아래 순서대로 진행해 보세요. AI 요약은 맨 마지막에 오른쪽에서 확인합니다.</p>
+        <p class="coach-panel-desc">위쪽에서 PDF를 올린 뒤, 보조교사와 대화하며 명세서를 이해해 보세요. 오른쪽에서 「내 생각 정리」를 마치고 [명세서 분석하기]를 누르면 AI 요약을 볼 수 있어요.</p>
       </div>
       <section class="coach-card" aria-labelledby="coach-chat-heading">
         <h3 id="coach-chat-heading" class="coach-card-title"><span class="coach-step-num">1</span> 보조교사와 대화</h3>
@@ -77,28 +78,32 @@ export function mountStudentPdfAnalysis(rootEl, options = {}) {
           </div>
         </div>
       </section>
-      <section id="explore-reflection-block" class="coach-card coach-card--reflect" hidden aria-labelledby="coach-reflect-heading">
-        <h3 id="coach-reflect-heading" class="coach-card-title"><span class="coach-step-num">2</span> 내 생각 정리</h3>
-        <p class="explore-reflection-hint">대화를 두 번 이상 나눈 뒤 채워 주세요. 세 칸을 모두 채우면 오른쪽 [명세서 분석하기]를 누를 수 있어요.</p>
-        <div class="explore-reflection-fields">
-          <div class="explore-reflection-field">
-            <label for="reflect-features"><span class="explore-label-num">1</span> 발명품의 특징</label>
-            <textarea id="reflect-features" class="explore-reflection-textarea" rows="3" placeholder="내가 읽고 이해한 특징을 적어 보세요."></textarea>
-          </div>
-          <div class="explore-reflection-field">
-            <label for="reflect-materials"><span class="explore-label-num">2</span> 발명품의 재료</label>
-            <textarea id="reflect-materials" class="explore-reflection-textarea" rows="3" placeholder="명세서에 나온 재료·구성을 적어 보세요."></textarea>
-          </div>
-          <div class="explore-reflection-field">
-            <label for="reflect-improvements"><span class="explore-label-num">3</span> 내가 생각하는 보완해야 할 점</label>
-            <textarea id="reflect-improvements" class="explore-reflection-textarea" rows="3" placeholder="보완이 필요하다고 생각하는 점을 적어 보세요."></textarea>
-          </div>
-        </div>
-        <div class="explore-reflection-actions">
-          <button id="save-reflection-btn" type="button" disabled>내 생각 정리 저장하기</button>
-        </div>
-      </section>
     </aside>`
+    : ''
+
+  const reflectionSection = showCoachPanel
+    ? `
+    <section id="explore-reflection-block" class="coach-card coach-card--reflect" hidden aria-labelledby="coach-reflect-heading">
+      <h3 id="coach-reflect-heading" class="coach-card-title"><span class="coach-step-num">2</span> 내 생각 정리</h3>
+      <p class="explore-reflection-hint">왼쪽에서 보조교사와 두 번 이상 대화한 뒤 채워 주세요. 세 칸을 모두 채우면 아래 [명세서 분석하기]를 누를 수 있어요.</p>
+      <div class="explore-reflection-fields">
+        <div class="explore-reflection-field">
+          <label for="reflect-features"><span class="explore-label-num">1</span> 발명품의 특징</label>
+          <textarea id="reflect-features" class="explore-reflection-textarea" rows="3" placeholder="내가 읽고 이해한 특징을 적어 보세요."></textarea>
+        </div>
+        <div class="explore-reflection-field">
+          <label for="reflect-materials"><span class="explore-label-num">2</span> 발명품의 재료</label>
+          <textarea id="reflect-materials" class="explore-reflection-textarea" rows="3" placeholder="명세서에 나온 재료·구성을 적어 보세요."></textarea>
+        </div>
+        <div class="explore-reflection-field">
+          <label for="reflect-improvements"><span class="explore-label-num">3</span> 내가 생각하는 보완해야 할 점</label>
+          <textarea id="reflect-improvements" class="explore-reflection-textarea" rows="3" placeholder="보완이 필요하다고 생각하는 점을 적어 보세요."></textarea>
+        </div>
+      </div>
+      <div class="explore-reflection-actions">
+        <button id="save-reflection-btn" type="button" disabled>내 생각 정리 저장하기</button>
+      </div>
+    </section>`
     : ''
 
   rootEl.innerHTML = `
@@ -107,17 +112,17 @@ export function mountStudentPdfAnalysis(rootEl, options = {}) {
       <h1>${escapeHtml(heading)}</h1>
       <p class="subtitle">${escapeHtml(subtitle)}</p>
     </header>
+    ${uploaderSection}
     ${
       showCoachPanel
         ? `<div class="explore-workspace">
       ${coachAside}
       <div class="explore-main explore-main--spec">
-        ${uploaderSection}
+        ${reflectionSection}
         ${analysisSection}
       </div>
     </div>`
-        : `${uploaderSection}
-    ${analysisSection}`
+        : `${analysisSection}`
     }
   </div>
 `
@@ -127,6 +132,7 @@ export function mountStudentPdfAnalysis(rootEl, options = {}) {
   const analysisStatusEl = rootEl.querySelector('#analysis-status')
   const analysisGrid = rootEl.querySelector('#analysis-grid')
   const goToIdeaBtn = rootEl.querySelector('#go-to-idea-btn')
+  const downloadPdfBtn = rootEl.querySelector('#download-pdf-btn')
   const coachMessagesEl = showCoachPanel ? rootEl.querySelector('#coach-messages') : null
   const coachInput = showCoachPanel ? rootEl.querySelector('#coach-input') : null
   const coachSend = showCoachPanel ? rootEl.querySelector('#coach-send') : null
@@ -139,6 +145,63 @@ export function mountStudentPdfAnalysis(rootEl, options = {}) {
   let lastPdfFile = null
   /** @type {{ role: 'user' | 'assistant'; content: string }[]} */
   let coachHistory = []
+
+  function canDownloadPdf() {
+    if (lastPdfFile) return true
+    if (lastAnalysisData && typeof lastAnalysisData === 'object' && lastAnalysisData.specPdfPath) {
+      return true
+    }
+    return false
+  }
+
+  function refreshDownloadPdfBtn() {
+    if (!downloadPdfBtn) return
+    downloadPdfBtn.disabled = !canDownloadPdf()
+  }
+
+  function triggerBlobDownload(blob, fileName) {
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = fileName || 'document.pdf'
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    setTimeout(() => URL.revokeObjectURL(url), 1000)
+  }
+
+  async function handleDownloadPdfClick() {
+    if (!downloadPdfBtn) return
+    if (lastPdfFile) {
+      triggerBlobDownload(lastPdfFile, lastPdfFile.name || 'document.pdf')
+      return
+    }
+    const storedPath = lastAnalysisData?.specPdfPath
+    if (!storedPath) {
+      alert('다운로드할 명세서 PDF가 없어요. 먼저 PDF를 업로드해 주세요.')
+      return
+    }
+    const originalLabel = downloadPdfBtn.textContent
+    downloadPdfBtn.disabled = true
+    downloadPdfBtn.textContent = '불러오는 중…'
+    try {
+      const { downloadSpecPdfFromStorage } = await import('./activityStorage.js')
+      const bytes = await downloadSpecPdfFromStorage(storedPath)
+      if (!bytes) {
+        alert('저장된 명세서 PDF를 가져올 수 없어요. 로그인 상태를 확인해 주세요.')
+        return
+      }
+      const blob = new Blob([bytes], { type: 'application/pdf' })
+      const fileName = lastAnalysisData?.specPdfFileName || 'document.pdf'
+      triggerBlobDownload(blob, fileName)
+    } catch (error) {
+      console.error('명세서 PDF 다운로드 오류:', error)
+      alert('명세서 PDF 다운로드 중 오류가 발생했어요.')
+    } finally {
+      downloadPdfBtn.textContent = originalLabel || '명세서 PDF 다운로드'
+      refreshDownloadPdfBtn()
+    }
+  }
 
   function renderCoachMessages() {
     if (!coachMessagesEl) return
@@ -336,13 +399,13 @@ export function mountStudentPdfAnalysis(rootEl, options = {}) {
     coachSend.disabled = !pdfOk
     if (!pdfOk) {
       coachHint.textContent =
-        '먼저 오른쪽에서 PDF를 업로드하면, 업로드한 명세서 본문을 바탕으로 대화할 수 있어요.'
+        '먼저 위쪽에서 PDF를 업로드하면, 업로드한 명세서 본문을 바탕으로 대화할 수 있어요.'
     } else if (!coachAnalysisReady() && countUserCoachTurns() < 2) {
       coachHint.textContent =
-        '보조교사와 두 번 이상 대화한 뒤, 아래 「내 생각 정리하기」 칸이 열려요.'
+        '보조교사와 두 번 이상 대화한 뒤, 오른쪽에 「내 생각 정리」 칸이 열려요.'
     } else if (!coachAnalysisReady() && !isReflectionComplete()) {
       coachHint.textContent =
-        '세 칸을 모두 채우면 오른쪽 [명세서 분석하기]를 눌러 AI 요약을 볼 수 있어요.'
+        '오른쪽 「내 생각 정리」 세 칸을 모두 채우면 [명세서 분석하기]를 눌러 AI 요약을 볼 수 있어요.'
     } else {
       coachHint.textContent = ''
     }
@@ -428,6 +491,8 @@ export function mountStudentPdfAnalysis(rootEl, options = {}) {
     /* ignore */
   }
 
+  refreshDownloadPdfBtn()
+
   function setAnalysisStatus(message, mode = 'info') {
     if (!analysisStatusEl) return
     if (message.includes('<div') || message.includes('<span')) {
@@ -465,6 +530,7 @@ export function mountStudentPdfAnalysis(rootEl, options = {}) {
           clearReflectionUiAndStorage()
           updateCoachUi()
         }
+        refreshDownloadPdfBtn()
         return
       }
 
@@ -473,6 +539,7 @@ export function mountStudentPdfAnalysis(rootEl, options = {}) {
       if (goToIdeaBtn) goToIdeaBtn.disabled = true
       lastAnalysisData = null
       lastPdfFile = file
+      refreshDownloadPdfBtn()
       if (showCoachPanel) {
         coachHistory = []
         renderCoachMessages()
@@ -492,7 +559,7 @@ export function mountStudentPdfAnalysis(rootEl, options = {}) {
 
         setAnalysisStatus(
           showCoachPanel
-            ? '텍스트 추출 완료! 왼쪽에서 발명 보조교사와 대화하고 생각을 정리한 뒤, 오른쪽에서 [명세서 분석하기]를 눌러 주세요.'
+            ? '텍스트 추출 완료! 왼쪽에서 발명 보조교사와 대화하고, 오른쪽의 「내 생각 정리」를 채운 뒤 아래 [명세서 분석하기]를 눌러 주세요.'
             : '텍스트 추출 완료! [명세서 분석하기]를 눌러 요약을 받아 보세요.',
           'success'
         )
@@ -521,7 +588,7 @@ export function mountStudentPdfAnalysis(rootEl, options = {}) {
 
       if (showCoachPanel && !exploreCanRunAiAnalysis()) {
         setAnalysisStatus(
-          '먼저 왼쪽에서 보조교사와 두 번 이상 대화한 뒤, 「내 생각 정리하기」 세 칸을 모두 채워 주세요.',
+          '먼저 왼쪽에서 보조교사와 두 번 이상 대화한 뒤, 오른쪽 「내 생각 정리」 세 칸을 모두 채워 주세요.',
           'warn'
         )
         return
@@ -582,6 +649,7 @@ export function mountStudentPdfAnalysis(rootEl, options = {}) {
 
         lastAnalysisData = enriched
         renderAnalysis(analysisGrid, enriched)
+        refreshDownloadPdfBtn()
 
         localStorage.setItem('analysisData', JSON.stringify(enriched))
         localStorage.setItem('extractedText', lastExtractedText)
@@ -602,6 +670,12 @@ export function mountStudentPdfAnalysis(rootEl, options = {}) {
       } finally {
         toggleAnalysis(false)
       }
+    })
+  }
+
+  if (downloadPdfBtn) {
+    downloadPdfBtn.addEventListener('click', () => {
+      handleDownloadPdfClick()
     })
   }
 

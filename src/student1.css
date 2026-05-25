@@ -306,6 +306,17 @@ body {
   margin-top: 0;
 }
 
+.explore-main--spec .coach-card--reflect {
+  border: 1px solid #c7d2fe;
+  background: linear-gradient(165deg, #eef2ff 0%, #f8fafc 100%);
+  padding: 18px 20px 18px;
+  box-shadow: 0 4px 14px rgba(37, 99, 235, 0.07);
+}
+
+.explore-main--spec .coach-card--reflect .coach-card-title {
+  font-size: 1rem;
+}
+
 .sr-only {
   position: absolute;
   width: 1px;
@@ -380,6 +391,30 @@ h1::before {
 
 .file-picker input {
   display: none;
+}
+
+.pdf-download-btn {
+  background: #fff;
+  color: #1d4ed8;
+  border: 1px solid #2563eb;
+  padding: 13px 22px;
+  font-size: 0.98rem;
+  font-weight: 600;
+  border-radius: 12px;
+  min-width: 200px;
+}
+
+.pdf-download-btn:hover:not(:disabled) {
+  background: #eff6ff;
+  color: #1e3a8a;
+  border-color: #1d4ed8;
+  transform: translateY(-1px);
+}
+
+.pdf-download-btn:disabled {
+  background: #f1f5f9;
+  color: #94a3b8;
+  border-color: #cbd5e1;
 }
 
 button {
