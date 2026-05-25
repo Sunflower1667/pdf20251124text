@@ -257,13 +257,8 @@ body {
   word-break: keep-all;
 }
 
-@media (max-width: 960px) {
-  .activity-nav {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-}
-
-@media (max-width: 520px) {
+/* 휴대폰 전용: 활동 단계 버튼을 2열로 압축 (태블릿/아이패드는 6열 유지) */
+@media (max-width: 599px) {
   .activity-nav {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -350,9 +345,114 @@ body {
   }
 }
 
-@media (max-width: 600px) {
+/* ===== 태블릿(아이패드 등): 헤더 비중을 줄여 활동 영역을 더 넓게 확보 ===== */
+@media (min-width: 600px) and (max-width: 1100px) {
   .dashboard-header {
-    padding: 16px 20px;
+    padding: 10px clamp(12px, 2vw, 28px);
+    gap: 8px;
+  }
+
+  .dashboard-header-top {
+    gap: 12px;
+    align-items: center;
+  }
+
+  .dashboard-header h1 {
+    font-size: 1.2rem;
+    margin: 0 0 2px;
+    gap: 6px;
+  }
+
+  .dashboard-header h1::before {
+    font-size: 1.1rem;
+  }
+
+  .dashboard-header .subtitle {
+    font-size: 0.8rem;
+    margin: 0 0 6px;
+    line-height: 1.35;
+  }
+
+  .back-btn {
+    padding: 5px 12px;
+    font-size: 0.78rem;
+    border-radius: 10px;
+    border-width: 1px;
+    box-shadow: 0 1px 4px rgba(15, 23, 42, 0.08);
+  }
+
+  .header-actions {
+    gap: 6px;
+    justify-content: flex-end;
+  }
+
+  .action-btn-primary,
+  .action-btn-secondary {
+    padding: 7px 12px;
+    font-size: 0.8rem;
+    border-radius: 10px;
+    box-shadow: 0 2px 8px rgba(37, 99, 235, 0.18);
+    gap: 4px;
+  }
+
+  .action-btn-primary::before,
+  .action-btn-secondary::before {
+    font-size: 0.95rem;
+  }
+
+  .user-info {
+    gap: 8px;
+    padding-left: 6px;
+  }
+
+  .user-avatar {
+    width: 28px;
+    height: 28px;
+  }
+
+  .user-name {
+    font-size: 0.8rem;
+  }
+
+  .logout-btn {
+    padding: 5px 10px;
+    font-size: 0.78rem;
+    border-radius: 8px;
+  }
+
+  /* 아이패드 세로에서도 6열 유지 (위쪽 메뉴가 두 줄로 늘어나지 않도록) */
+  .activity-nav {
+    padding: 8px 0 0;
+    gap: 6px;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+
+  .activity-nav-btn {
+    padding: 6px 4px;
+    font-size: clamp(0.62rem, 1.05vw, 0.78rem);
+    min-height: 36px;
+    border-radius: 8px;
+    border-width: 1px;
+  }
+
+  /* 활동 영역이 보다 넉넉히 보이도록 */
+  .activity-placeholder,
+  .activity-frame {
+    min-height: calc(100dvh - 170px);
+  }
+
+  .dashboard-footer {
+    padding: 10px clamp(12px, 2vw, 28px);
+  }
+}
+
+@media (max-width: 599px) {
+  /* 휴대폰에서는 헤더/푸터를 sticky 해제: 스크롤하면 화면 전체를 활동 iframe에 줄 수 있도록 */
+  .dashboard-header {
+    position: static;
+    padding: 14px 16px;
+    gap: 10px;
+    box-shadow: 0 1px 4px rgba(15, 23, 42, 0.06);
   }
 
   .dashboard-header-top {
@@ -361,11 +461,26 @@ body {
   }
 
   .dashboard-header h1 {
-    font-size: 1.5rem;
+    font-size: 1.4rem;
+    margin: 0 0 4px;
+  }
+
+  .dashboard-header .subtitle {
+    font-size: 0.88rem;
+    margin: 0 0 8px;
   }
 
   .activity-workspace {
     padding: 10px 10px 16px;
+    /* 동적 뷰포트 단위로 iOS Safari 주소창에 의한 영역 변동 보정 */
+    min-height: calc(100dvh - 120px);
+  }
+
+  /* 활동 영역(iframe/플레이스홀더)이 휴대폰 화면을 거의 가득 채우도록 */
+  .activity-placeholder,
+  .activity-frame {
+    min-height: 70dvh;
+    height: auto;
   }
 
   .header-actions {
@@ -383,6 +498,11 @@ body {
   .back-btn {
     width: 100%;
     margin-top: 12px;
+  }
+
+  .dashboard-footer {
+    position: static;
+    padding: 14px 16px;
   }
 }
 
