@@ -95,18 +95,13 @@ if (!analysisData || Object.keys(analysisData).length === 0) {
   app.innerHTML = `
     <div class="shell">
       <header>
-        <h1>발명 아이디어 창출</h1>
-        <p class="subtitle">명세서를 바탕으로, 만들고 싶은 키워드를 활용해 새로운 발명 아이디어를 만들어보고 구체화해보세요.</p>
+        <h1> 이제 나만의 발명품을 만들어 볼 차례야!</h1>
+        <p class="subtitle">앞에서 탐색한 명세서를 힌트 삼아, 떠오르는 단어 3개만 입력해보세요. AI가 아이디어 3가지를 뽑아줄거에요</p>
       </header>
 
       <section class="idea-generation">
         <div class="section-header">
-          <h2>1단계: 아이디어 생성</h2>
-          <p class="section-description">
-            만들고 싶은 발명과 관련된 단어를 <strong>3개</strong> 입력하면, 입력한 단어와 어울리는
-            <strong>TRIZ 발명 기법</strong>을 골라 그 원리를 적용한 새로운 아이디어를 만들어줘요.
-            (예: 스마트폰 거치대, 친환경, 접이식)
-          </p>
+          <h2>단어 3개를 적어봐요</h2>
         </div>
 
         <details class="triz-guide">
@@ -123,14 +118,14 @@ if (!analysisData || Object.keys(analysisData).length === 0) {
             id="keyword-input"
             type="text"
             class="keyword-input"
-            placeholder="예: 스마트폰 거치대, 친환경, 접이식"
+            placeholder="예: 친환경, 경량, 이동편리"
           />
         </div>
 
         <div class="section-header section-header-bottom">
           <div class="idea-buttons">
-            <button id="generate-ideas-btn" type="button">아이디어 3개 생성하기</button>
-            <button id="regenerate-ideas-btn" type="button" disabled style="display: none;">아이디어 다시 생성하기</button>
+            <button id="generate-ideas-btn" type="button" class="btn-idea-generate">✦ 아이디어 뽑아줘!</button>
+            <button id="regenerate-ideas-btn" type="button" class="btn-idea-regenerate" disabled style="display: none;">다시</button>
           </div>
         </div>
         <div id="ideas-container" class="ideas-container"></div>
@@ -165,7 +160,7 @@ if (!analysisData || Object.keys(analysisData).length === 0) {
             <p class="diagnosis-analysis-placeholder">세 아이디어를 모두 평가하면 비교 분석 코멘트가 여기 표시돼요.</p>
           </div>
           <div class="diagnosis-analysis-actions">
-            <button id="rerun-analysis-btn" type="button" class="diagnosis-analysis-btn" disabled>비교 분석 다시 받기</button>
+            <button id="rerun-analysis-btn" type="button" class="btn-ghost diagnosis-analysis-btn" disabled>비교 분석 다시 받기</button>
           </div>
         </div>
       </section>
@@ -180,15 +175,15 @@ if (!analysisData || Object.keys(analysisData).length === 0) {
         <div class="chat-input-container">
           <textarea id="chat-input" placeholder="아이디어에 대해 질문하거나 설명을 요청하세요..." rows="3"></textarea>
           <div class="chat-buttons">
-            <button id="send-btn" type="button">전송</button>
-            <button id="save-chat-btn" type="button" disabled>대화 내용 저장하기</button>
+            <button id="send-btn" type="button" class="btn-secondary">전송</button>
+            <button id="save-chat-btn" type="button" class="btn-secondary" disabled>대화 내용 저장하기</button>
           </div>
         </div>
         <div class="refine-step-subheader">
           <h2>[구체화한 아이디어 정리하기]</h2>
         </div>
         <div class="refine-action" style="text-align: center;">
-          <button id="refine-idea-btn" type="button" disabled style="padding: 12px 24px; font-size: 1rem; font-weight: 600; background: #2563eb; color: white; border: none; border-radius: 8px; cursor: pointer; transition: background 150ms ease;">
+          <button id="refine-idea-btn" type="button" class="btn-primary" disabled>
             아이디어 구체화
           </button>
         </div>
@@ -203,7 +198,7 @@ if (!analysisData || Object.keys(analysisData).length === 0) {
         </div>
         <div id="refined-cards" class="refined-cards"></div>
         <div class="actions">
-          <button id="save-result-btn" type="button">결과 저장하기</button>
+          <button id="save-result-btn" type="button" class="btn-secondary">결과 저장하기</button>
         </div>
       </section>
     </div>
@@ -268,7 +263,7 @@ let lastKeywords = []
 let selectionReason = ''
 
 const SELECTION_REASON_PLACEHOLDER =
-  '예) 내가 이 아이디어를 선택한 이유는 ~원리가 마음에 들었기 때문이다.'
+  '예: 이런 게 있으면 내가 진짜 편할 것 같아서'
 
 function applyIdeaPageHash() {
   const raw = (location.hash || '').replace(/^#/, '').toLowerCase()
@@ -330,7 +325,7 @@ if (generateIdeasBtn) {
       console.error(error)
       alert('아이디어 생성 중 오류가 발생했습니다.')
       generateIdeasBtn.disabled = false
-      generateIdeasBtn.textContent = '아이디어 3개 생성하기'
+      generateIdeasBtn.textContent = '✦ 아이디어 뽑아줘!'
     }
   })
 }
@@ -391,11 +386,11 @@ if (regenerateIdeasBtn) {
       displayIdeas(generatedIdeas)
       flushStudentIdeaSessionToStorage()
       notifyParentIdeaStep('generation')
-      regenerateIdeasBtn.textContent = '아이디어 다시 생성하기'
+      regenerateIdeasBtn.textContent = '다시'
     } catch (error) {
       console.error(error)
       alert('아이디어 생성 중 오류가 발생했습니다.')
-      regenerateIdeasBtn.textContent = '아이디어 다시 생성하기'
+      regenerateIdeasBtn.textContent = '다시'
     } finally {
       isGenerating = false
       // 버튼은 항상 활성화 상태 유지
@@ -687,7 +682,7 @@ function displayIdeas(ideas) {
       <div class="idea-description">
         <p>${sanitize(idea.description)}</p>
       </div>
-      <button class="select-idea-btn" data-index="${index}">이 아이디어 선택하기</button>
+      <button class="btn-secondary select-idea-btn" data-index="${index}">이 아이디어 선택하기</button>
     </div>
   `
       }
@@ -763,8 +758,8 @@ function renderDiagnosisSection(ideas) {
           <div class="diagnosis-sliders">
             ${slidersHtml}
           </div>
-          <button type="button" class="diagnosis-pick-btn" data-index="${index}" style="background:${color.stroke}">
-            [PICK] 이 아이디어로 결정!
+          <button type="button" class="diagnosis-pick-btn" data-index="${index}">
+            이 아이디어로 갈게! ✓
           </button>
         </article>
       `
@@ -1038,7 +1033,7 @@ function renderSelectedIdea(idea) {
       ${trizLine}
       <div class="selection-reason">
         <label for="selection-reason-input" class="selection-reason-label">
-          이 아이디어를 선택한 이유를 적어 보세요.
+          왜 이 아이디어가 마음에 들었나요?
         </label>
         <textarea
           id="selection-reason-input"
@@ -1078,7 +1073,7 @@ function tryRestoreStudentIdeaSession() {
     }
     if (generateIdeasBtn) {
       generateIdeasBtn.disabled = false
-      generateIdeasBtn.textContent = '아이디어 3개 생성하기'
+      generateIdeasBtn.textContent = '✦ 아이디어 뽑아줘!'
     }
 
     const sel = s.selectedIdea

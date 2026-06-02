@@ -7,25 +7,23 @@ app.innerHTML = `
     <div class="main-card">
       <header>
         <h1>스마트 팅커(Smart Tinker)</h1>
-        <p class="subtitle">명세서 분석부터 아이디어 창출까지</p>
+        <p class="subtitle">나만의 발명 아이디어, 같이 찾아보자!</p>
       </header>
 
       <div class="action-buttons">
-        <button id="student-btn" class="action-btn student-btn">
-          <div class="btn-icon">👨‍🎓</div>
-          <div class="btn-content">
-            <h2>학생활동</h2>
-            <p>학생용 활동 페이지로 이동</p>
-          </div>
-        </button>
+        <div class="action-group">
+          <div class="action-icon" aria-hidden="true">👨‍🎓</div>
+          <button id="student-btn" class="action-btn student-btn">
+            학생으로 시작하기
+          </button>
+        </div>
 
-        <button id="teacher-btn" class="action-btn teacher-btn">
-          <div class="btn-icon">👩‍🏫</div>
-          <div class="btn-content">
-            <h2>교사 모니터링</h2>
-            <p>교사용 모니터링 페이지로 이동</p>
-          </div>
-        </button>
+        <div class="action-group">
+          <div class="action-icon" aria-hidden="true">👩‍🏫</div>
+          <button id="teacher-btn" class="action-btn teacher-btn">
+            선생님 화면으로 가기
+          </button>
+        </div>
       </div>
     </div>
   </div>

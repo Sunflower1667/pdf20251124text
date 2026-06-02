@@ -82,7 +82,7 @@ app.innerHTML = `
 
     <section class="actions-section">
       <div class="action-buttons">
-        <button id="get-feedback-btn" type="button" disabled>소감 제출 및 피드백 받기</button>
+        <button id="get-feedback-btn" type="button" class="btn-primary" disabled>소감 제출 및 피드백 받기</button>
       </div>
       <p id="status-message" class="status-message">소감을 작성하면 제출 및 피드백을 받을 수 있습니다.</p>
     </section>
@@ -91,8 +91,8 @@ app.innerHTML = `
       <h2>교사 피드백</h2>
       <div id="feedback-content" class="feedback-content"></div>
       <div class="feedback-actions">
-        <button id="save-with-feedback-btn" type="button">PDF로 오늘 활동결과 저장하기</button>
-        <button id="finish-activity-btn" type="button" style="display: none;">활동 종료하기</button>
+        <button id="save-with-feedback-btn" type="button" class="btn-secondary">PDF로 오늘 활동결과 저장하기</button>
+        <button id="finish-activity-btn" type="button" class="btn-danger" style="display: none;">활동 종료하기</button>
       </div>
     </section>
   </div>

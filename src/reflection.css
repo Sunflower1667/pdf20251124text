@@ -1,3 +1,5 @@
+@import './buttons.css';
+
 :root {
   font-family: 'Pretendard', 'SUIT', 'Noto Sans KR', system-ui, -apple-system,
     BlinkMacSystemFont, sans-serif;
@@ -256,27 +258,31 @@ h1 {
   flex-wrap: wrap;
 }
 
+/* 기본 button: 위계 클래스(.btn-*) 가 없는 경우의 안전한 기본값 (Secondary 톤) */
 button {
   border: none;
-  border-radius: 12px;
-  padding: 14px 24px;
+  border-radius: 999px;
+  padding: 12px 22px;
   font-size: 1rem;
-  font-weight: 600;
+  font-weight: 500;
   font-family: inherit;
   cursor: pointer;
-  background: #2563eb;
-  color: #fff;
-  transition: opacity 150ms ease, transform 150ms ease, background 150ms ease;
+  background: #F0F0F0;
+  color: #555555;
+  transition: background 150ms ease, color 150ms ease, transform 150ms ease,
+    opacity 150ms ease;
 }
 
 button:hover:not(:disabled) {
   transform: translateY(-1px);
-  background: #1d4ed8;
+  background: #E5E5E5;
+  color: #1A1A1A;
 }
 
 button:disabled {
-  opacity: 0.5;
+  opacity: 0.55;
   cursor: not-allowed;
+  transform: none;
 }
 
 .status-message {

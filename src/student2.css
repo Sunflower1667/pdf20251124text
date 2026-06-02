@@ -1,3 +1,5 @@
+@import './buttons.css';
+
 :root {
   font-family: 'SUIT', 'Pretendard', 'Noto Sans KR', system-ui, -apple-system,
     BlinkMacSystemFont, sans-serif;
@@ -106,25 +108,31 @@ body {
 }
 
 .primary-btn {
-  border: none;
-  border-radius: 16px;
-  padding: 14px 28px;
+  border: 1.5px solid transparent;
+  border-radius: 999px;
+  padding: 12px 24px;
   font-size: 1rem;
   font-weight: 600;
   cursor: pointer;
-  background: #2563eb;
-  color: #fff;
+  background: #FFE020;
+  color: #1A1A1A;
   min-width: 160px;
-  transition: transform 150ms ease, opacity 150ms ease;
+  box-shadow: 0 4px 14px rgba(255, 224, 32, 0.35);
+  transition: background 150ms ease, transform 150ms ease, box-shadow 150ms ease,
+    opacity 150ms ease;
 }
 
 .primary-btn:hover:not(:disabled) {
-  transform: translateY(-2px);
+  background: #FFD60A;
+  transform: translateY(-1px);
+  box-shadow: 0 6px 18px rgba(255, 214, 10, 0.45);
 }
 
 .primary-btn:disabled {
-  opacity: 0.5;
+  opacity: 0.55;
   cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
 }
 
 .cards-grid {

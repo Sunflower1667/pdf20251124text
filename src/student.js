@@ -16,10 +16,10 @@ app.innerHTML = `
           <button id="back-btn" class="back-btn">← 메인으로 돌아가기</button>
         </div>
         <div class="header-actions">
-          <button id="finish-activity-btn" class="action-btn-primary">활동 종료하기</button>
-          <button id="resume-activities-btn" class="action-btn-primary">과거 활동 불러오기</button>
+          <button id="finish-activity-btn" class="btn-danger">활동 종료하기</button>
+          <button id="resume-activities-btn" class="btn-secondary">과거 활동 불러오기</button>
           <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
-            <button id="view-past-btn" class="action-btn-secondary" type="button">과거 활동 보기</button>
+            <button id="view-past-btn" class="btn-secondary" type="button">과거 활동 보기</button>
             <div class="user-info" id="user-info" style="display: none;">
               <div class="user-profile">
                 <img id="user-photo" src="" alt="프로필" class="user-avatar" onerror="this.style.display='none'">
@@ -31,12 +31,62 @@ app.innerHTML = `
         </div>
       </div>
       <nav class="activity-nav" aria-label="활동 단계 선택">
-        <button type="button" class="activity-nav-btn" data-activity-src="seed.html">나의 발명 씨앗 찾기</button>
-        <button type="button" class="activity-nav-btn" data-activity-src="student2.html">명세서 탐색하기</button>
-        <button type="button" class="activity-nav-btn" data-activity-src="idea.html">아이디어 창출하기</button>
-        <button type="button" class="activity-nav-btn" data-activity-src="idea.html#concretize">발명품 선정 및 구체화</button>
-        <button type="button" class="activity-nav-btn" data-activity-src="drawing.html">발명품 표현하기</button>
-        <button type="button" class="activity-nav-btn" data-activity-src="invention-spec.html">나만의 발명품 명세서 완성하기</button>
+        <ol class="activity-progress" role="tablist">
+          <li class="activity-progress__step" data-step-index="1">
+            <button type="button" class="activity-nav-btn activity-progress__dot" data-activity-src="seed.html" data-step-title="나의 발명 씨앗 찾기" aria-label="1단계: 나의 발명 씨앗 찾기">
+              <span class="activity-progress__num">1</span>
+              <svg class="activity-progress__check" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                <path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </button>
+          </li>
+          <li class="activity-progress__connector" aria-hidden="true"></li>
+          <li class="activity-progress__step" data-step-index="2">
+            <button type="button" class="activity-nav-btn activity-progress__dot" data-activity-src="student2.html" data-step-title="명세서 탐색" aria-label="2단계: 명세서 탐색하기">
+              <span class="activity-progress__num">2</span>
+              <svg class="activity-progress__check" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                <path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </button>
+          </li>
+          <li class="activity-progress__connector" aria-hidden="true"></li>
+          <li class="activity-progress__step" data-step-index="3">
+            <button type="button" class="activity-nav-btn activity-progress__dot" data-activity-src="idea.html" data-step-title="아이디어 창출" aria-label="3단계: 아이디어 창출하기">
+              <span class="activity-progress__num">3</span>
+              <svg class="activity-progress__check" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                <path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </button>
+          </li>
+          <li class="activity-progress__connector" aria-hidden="true"></li>
+          <li class="activity-progress__step" data-step-index="4">
+            <button type="button" class="activity-nav-btn activity-progress__dot" data-activity-src="idea.html#concretize" data-step-title="발명품 선정·구체화" aria-label="4단계: 발명품 선정 및 구체화">
+              <span class="activity-progress__num">4</span>
+              <svg class="activity-progress__check" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                <path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </button>
+          </li>
+          <li class="activity-progress__connector" aria-hidden="true"></li>
+          <li class="activity-progress__step" data-step-index="5">
+            <button type="button" class="activity-nav-btn activity-progress__dot" data-activity-src="drawing.html" data-step-title="발명품 표현" aria-label="5단계: 발명품 표현하기">
+              <span class="activity-progress__num">5</span>
+              <svg class="activity-progress__check" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                <path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </button>
+          </li>
+          <li class="activity-progress__connector" aria-hidden="true"></li>
+          <li class="activity-progress__step" data-step-index="6">
+            <button type="button" class="activity-nav-btn activity-progress__dot" data-activity-src="invention-spec.html" data-step-title="발명품 명세서 완성" aria-label="6단계: 나만의 발명품 명세서 완성하기">
+              <span class="activity-progress__num">6</span>
+              <svg class="activity-progress__check" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                <path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </button>
+          </li>
+        </ol>
+        <p class="activity-progress__label" id="activity-progress-label" aria-live="polite">활동할 단계를 선택하세요</p>
       </nav>
     </header>
 
@@ -56,7 +106,7 @@ app.innerHTML = `
     <footer class="dashboard-footer" aria-label="전체 저장">
       <div class="dashboard-footer-inner">
         <p id="save-all-status" class="save-all-status" aria-live="polite"></p>
-        <button id="save-all-btn" class="action-btn-primary save-all-btn" type="button">
+        <button id="save-all-btn" class="btn-secondary save-all-btn" type="button">
           전체 저장
         </button>
       </div>
@@ -71,7 +121,47 @@ const viewPastBtn = document.querySelector('#view-past-btn')
 const saveAllBtn = document.querySelector('#save-all-btn')
 const saveAllStatus = document.querySelector('#save-all-status')
 const activityNavBtns = document.querySelectorAll('.activity-nav-btn')
+const activityProgressSteps = document.querySelectorAll('.activity-progress__step')
+const activityProgressConnectors = document.querySelectorAll('.activity-progress__connector')
+const activityProgressLabel = document.querySelector('#activity-progress-label')
 const activityPlaceholder = document.querySelector('#activity-placeholder')
+
+// 진행 도트 상태 갱신: 활성 버튼(.is-active)을 기준으로
+// 이전 단계 = 완료, 해당 단계 = 현재, 이후 단계 = 미완료로 표시
+function updateActivityProgress() {
+  const activeBtn = [...activityNavBtns].find((b) => b.classList.contains('is-active'))
+  let activeIndex = -1
+  if (activeBtn) {
+    activeIndex = [...activityNavBtns].indexOf(activeBtn)
+  }
+
+  activityProgressSteps.forEach((step, idx) => {
+    step.classList.remove('is-completed', 'is-current', 'is-upcoming')
+    if (activeIndex === -1) {
+      step.classList.add('is-upcoming')
+    } else if (idx < activeIndex) {
+      step.classList.add('is-completed')
+    } else if (idx === activeIndex) {
+      step.classList.add('is-current')
+    } else {
+      step.classList.add('is-upcoming')
+    }
+  })
+
+  activityProgressConnectors.forEach((connector, idx) => {
+    connector.classList.toggle('is-completed', activeIndex !== -1 && idx < activeIndex)
+  })
+
+  if (activityProgressLabel) {
+    if (activeIndex === -1 || !activeBtn) {
+      activityProgressLabel.textContent = '활동할 단계를 선택하세요'
+    } else {
+      const stepNum = activeIndex + 1
+      const title = activeBtn.getAttribute('data-step-title') || activeBtn.textContent.trim()
+      activityProgressLabel.textContent = `지금은 ${stepNum}단계 · ${title} 중`
+    }
+  }
+}
 const activityFrame = document.querySelector('#activity-frame')
 const userInfo = document.querySelector('#user-info')
 const userName = document.querySelector('#user-name')
@@ -120,6 +210,7 @@ function openWorkspaceIframe(src) {
   activityNavBtns.forEach((b) => b.classList.remove('is-active'))
   const navBtn = [...activityNavBtns].find((b) => b.getAttribute('data-activity-src') === src)
   if (navBtn) navBtn.classList.add('is-active')
+  updateActivityProgress()
 
   activityPlaceholder.hidden = true
   activityFrame.hidden = false
@@ -141,6 +232,7 @@ window.addEventListener('message', (e) => {
       : '[data-activity-src="idea.html"]'
   const target = document.querySelector(selector)
   if (target) target.classList.add('is-active')
+  updateActivityProgress()
 })
 
 // Firebase 초기화 및 로그인 상태 확인
@@ -642,7 +734,7 @@ function showActivityDetail(activity) {
       <h3>명세서 분석 결과</h3>
       <p><strong>작성일:</strong> ${date}</p>
       ${pdfNote}
-      <p style="margin-top:12px"><button type="button" class="action-btn-primary" id="restore-analysis-from-detail">이 분석·명세서를 작업대에 불러오기</button></p>
+      <p style="margin-top:12px"><button type="button" class="btn-primary" id="restore-analysis-from-detail">이 분석·명세서를 작업대에 불러오기</button></p>
       <p><strong>특허 이름:</strong> ${sanitize(patentName || '정보 없음')}</p>
       <p><strong>출원 번호:</strong> ${sanitize(applicationNumber || '정보 없음')}</p>
       <p><strong>발명품의 특징:</strong></p>
@@ -829,6 +921,8 @@ activityNavBtns.forEach((btn) => {
     openWorkspaceIframe(src)
   })
 })
+
+updateActivityProgress()
 
 /* -------------------------------------------------------------------------- */
 /*  전체 저장(하단 버튼) / 페이지 로드 시 최신 활동 세트 일괄 복원             */

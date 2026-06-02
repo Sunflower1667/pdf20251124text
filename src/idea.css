@@ -1,3 +1,5 @@
+@import './buttons.css';
+
 :root {
   font-family: 'Pretendard', 'SUIT', 'Noto Sans KR', system-ui, -apple-system,
     BlinkMacSystemFont, sans-serif;
@@ -185,40 +187,103 @@ h1::before {
   display: flex;
   gap: 12px;
   flex-wrap: wrap;
+  align-items: center;
 }
 
+.btn-idea-generate {
+  background: #FFE020;
+  color: #1A1A1A;
+  border: none;
+  border-radius: 999px;
+  padding: 14px 28px;
+  font-size: 1.05rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 150ms ease, transform 150ms ease, box-shadow 150ms ease;
+  box-shadow: 0 2px 6px rgba(255, 224, 32, 0.35);
+}
+
+.btn-idea-generate:hover:not(:disabled) {
+  background: #FFD500;
+  color: #1A1A1A;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 10px rgba(255, 213, 0, 0.45);
+}
+
+.btn-idea-generate:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.btn-idea-regenerate {
+  background: #F0F0F0;
+  color: #555555;
+  border: none;
+  border-radius: 999px;
+  padding: 8px 16px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 150ms ease, color 150ms ease, transform 150ms ease;
+}
+
+.btn-idea-regenerate:hover:not(:disabled) {
+  background: #E5E5E5;
+  color: #1A1A1A;
+  transform: translateY(-1px);
+}
+
+.btn-idea-regenerate:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* 기본 button: 위계 클래스(.btn-primary/.btn-secondary/.btn-ghost/.btn-danger)가
+   지정되지 않은 경우의 안전한 기본값(Secondary 톤). 위계 클래스가 있으면 그것이 우선한다. */
 button {
   border: none;
-  border-radius: 12px;
-  padding: 14px 24px;
+  border-radius: 999px;
+  padding: 12px 22px;
   font-size: 1rem;
-  font-weight: 600;
+  font-weight: 500;
   font-family: inherit;
   cursor: pointer;
-  background: #2563eb;
-  color: #fff;
-  transition: opacity 150ms ease, transform 150ms ease;
+  background: #F0F0F0;
+  color: #555555;
+  transition: background 150ms ease, color 150ms ease, transform 150ms ease,
+    opacity 150ms ease;
 }
 
 button:hover:not(:disabled) {
   transform: translateY(-1px);
-  background: #1d4ed8;
+  background: #E5E5E5;
+  color: #1A1A1A;
 }
 
 button:disabled {
-  opacity: 0.5;
+  opacity: 0.55;
   cursor: not-allowed;
+  transform: none;
 }
 
 .back-btn {
   display: inline-block;
   margin-top: 16px;
-  padding: 12px 24px;
-  background: #2563eb;
-  color: #fff;
+  padding: 10px 20px;
+  background: transparent;
+  color: #3A8DFF;
+  border: 1.5px solid #3A8DFF;
   text-decoration: none;
-  border-radius: 12px;
-  font-weight: 600;
+  border-radius: 999px;
+  font-weight: 500;
+  transition: background 150ms ease, transform 150ms ease;
+}
+
+.back-btn:hover {
+  background: rgba(58, 141, 255, 0.08);
+  transform: translateY(-1px);
 }
 
 /* 아이디어 생성 섹션 */
@@ -375,9 +440,9 @@ button:disabled {
   width: 100%;
   min-height: 64px;
   padding: 10px 12px;
-  border-radius: 10px;
-  border: 1px solid #86efac;
-  background: #ffffff;
+  border-radius: 12px;
+  border: 1.5px solid #C5DCFF;
+  background: #F0F7FF;
   color: #0f172a;
   font-family: inherit;
   font-size: 0.95rem;
@@ -392,8 +457,8 @@ button:disabled {
 
 .selection-reason-input:focus {
   outline: none;
-  border-color: #16a34a;
-  box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.18);
+  border-color: #3A8DFF;
+  box-shadow: 0 0 0 3px rgba(58, 141, 255, 0.18);
 }
 
 .triz-guide {
@@ -501,7 +566,6 @@ button:disabled {
 
 .select-idea-btn {
   width: 100%;
-  background: #2563eb;
 }
 
 /* 챗봇 섹션 */
@@ -836,20 +900,22 @@ button:disabled {
 
 .diagnosis-pick-btn {
   margin-top: 4px;
-  padding: 12px 16px;
+  padding: 12px 18px;
   border: none;
-  border-radius: 12px;
-  color: #ffffff;
+  border-radius: 999px;
+  background: #FFE020;
+  color: #1A1A1A;
   font-weight: 700;
   font-size: 1rem;
   cursor: pointer;
   letter-spacing: 0.02em;
-  transition: filter 150ms ease, transform 150ms ease;
+  transition: filter 150ms ease, transform 150ms ease, box-shadow 150ms ease;
 }
 
 .diagnosis-pick-btn:hover {
-  filter: brightness(1.05);
+  filter: brightness(1.03);
   transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(255, 224, 32, 0.35);
 }
 
 .diagnosis-chart-wrap {
@@ -947,14 +1013,8 @@ button:disabled {
 }
 
 .diagnosis-analysis-btn {
-  padding: 8px 14px;
+  padding: 8px 16px;
   font-size: 0.9rem;
-  border-radius: 10px;
-  background: #4f46e5;
-}
-
-.diagnosis-analysis-btn:hover:not(:disabled) {
-  background: #4338ca;
 }
 
 @media (max-width: 900px) {

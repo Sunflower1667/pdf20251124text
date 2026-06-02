@@ -1,4 +1,6 @@
 import './inventionSpec.css'
+import { jsPDF } from 'jspdf'
+import html2canvas from 'html2canvas'
 import { listenForWorkbenchFlushRequest } from './workbenchFlush.js'
 import { saveStudentActivity } from './activityStorage.js'
 
@@ -106,6 +108,10 @@ app.innerHTML = `
         </div>
         <p id="review-status" class="review-status">먼저 왼쪽에 명세서를 작성한 뒤 [검토하기]를 눌러 주세요.</p>
         <ul id="review-list" class="review-list"></ul>
+        <div class="save-pdf-wrap">
+          <button type="button" id="save-pdf-btn" class="save-pdf-btn">명세서 완성! 저장!</button>
+          <p id="save-pdf-status" class="save-pdf-status" aria-live="polite"></p>
+        </div>
       </aside>
     </div>
   </div>
@@ -117,6 +123,8 @@ const reviewBtn = document.getElementById('review-btn')
 const reviewStatusEl = document.getElementById('review-status')
 const reviewListEl = document.getElementById('review-list')
 const drawingPreviewWrap = document.getElementById('drawing-preview-wrap')
+const savePdfBtn = document.getElementById('save-pdf-btn')
+const savePdfStatusEl = document.getElementById('save-pdf-status')
 
 FIELDS.forEach((f) => {
   const el = document.getElementById(f.id)
@@ -305,6 +313,197 @@ if (reviewBtn) {
       }
     } finally {
       reviewBtn.disabled = false
+    }
+  })
+}
+
+function collectReviewIssues() {
+  if (!reviewListEl) return []
+  return Array.from(reviewListEl.querySelectorAll('li'))
+    .map((li) => li.textContent.trim())
+    .filter(Boolean)
+}
+
+function buildPdfBlocks(draft, drawingImage, issues) {
+  const blocks = []
+
+  blocks.push(`
+    <h1 style="font-size: 26px; font-weight: 800; margin: 0 0 6px; color: #0f172a;">나만의 발명품 명세서</h1>
+    <div style="height: 3px; background: linear-gradient(90deg, #2563eb, #7c3aed); border-radius: 2px;"></div>
+  `)
+
+  FIELDS.forEach((f) => {
+    const value = String(draft?.[f.id] || '').trim() || '(작성되지 않음)'
+    blocks.push(`
+      <div>
+        <h2 style="font-size: 17px; font-weight: 700; margin: 0 0 8px; color: #1e293b;">${sanitize(f.label)}</h2>
+        <div style="font-size: 14px; line-height: 1.8; padding: 14px 16px; background: #f8fafc; border-radius: 10px; border-left: 4px solid #2563eb; white-space: pre-wrap; color: #0f172a; word-break: break-word; overflow-wrap: anywhere;">${sanitize(value).replace(/\n/g, '<br>')}</div>
+      </div>
+    `)
+  })
+
+  if (drawingImage) {
+    blocks.push(`
+      <div>
+        <h2 style="font-size: 17px; font-weight: 700; margin: 0 0 10px; color: #1e293b;">발명품 표현하기 그림</h2>
+        <div style="padding: 14px; background: #f8fafc; border-radius: 10px; border: 1px solid #e2e8f0; text-align: center;">
+          <img src="${drawingImage}" alt="발명품 그림" style="max-width: 100%; height: auto; border-radius: 6px; display: block; margin: 0 auto;" />
+        </div>
+      </div>
+    `)
+  }
+
+  if (Array.isArray(issues) && issues.length) {
+    blocks.push(`
+      <div style="padding: 18px 20px; background: #fff7ed; border-radius: 10px; border-left: 4px solid #f97316;">
+        <h2 style="font-size: 16px; font-weight: 700; margin: 0 0 10px; color: #9a3412;">보완하면 좋을 점</h2>
+        <ul style="margin: 0; padding-left: 20px; font-size: 13.5px; line-height: 1.8; color: #7c2d12;">
+          ${issues.map((it) => `<li>${sanitize(it)}</li>`).join('')}
+        </ul>
+      </div>
+    `)
+  }
+
+  blocks.push(`
+    <div style="padding-top: 12px; border-top: 1px solid #e2e8f0; text-align: right; color: #64748b; font-size: 12px;">
+      작성일: ${new Date().toLocaleDateString('ko-KR')}
+    </div>
+  `)
+
+  return blocks
+}
+
+async function waitForImagesToLoad(root) {
+  const imgs = Array.from(root.querySelectorAll('img'))
+  await Promise.all(
+    imgs.map(
+      (img) =>
+        new Promise((resolve) => {
+          if (img.complete && img.naturalWidth > 0) return resolve()
+          img.onload = () => resolve()
+          img.onerror = () => resolve()
+        })
+    )
+  )
+}
+
+async function generateInventionSpecPdf(draft, drawingImage, issues) {
+  const RENDER_WIDTH_PX = 800
+  const blocks = buildPdfBlocks(draft, drawingImage, issues)
+
+  const stage = document.createElement('div')
+  stage.style.cssText = [
+    'position: absolute',
+    'left: -10000px',
+    'top: 0',
+    `width: ${RENDER_WIDTH_PX}px`,
+    'background: #ffffff',
+    'padding: 0',
+    "font-family: 'Pretendard', 'SUIT', 'Noto Sans KR', system-ui, sans-serif",
+    'color: #0f172a',
+  ].join(';')
+
+  const blockEls = blocks.map((html) => {
+    const wrapper = document.createElement('div')
+    wrapper.style.cssText = `width: ${RENDER_WIDTH_PX}px; background: #ffffff; box-sizing: border-box; padding: 0;`
+    wrapper.innerHTML = html
+    stage.appendChild(wrapper)
+    return wrapper
+  })
+
+  document.body.appendChild(stage)
+
+  try {
+    await waitForImagesToLoad(stage)
+
+    const doc = new jsPDF('p', 'mm', 'a4')
+    const pageWidth = doc.internal.pageSize.getWidth()
+    const pageHeight = doc.internal.pageSize.getHeight()
+    const marginX = 12
+    const marginY = 12
+    const contentWidth = pageWidth - marginX * 2
+    const contentHeight = pageHeight - marginY * 2
+    const blockGap = 5
+
+    let cursorY = marginY
+    let isFirstOnPage = true
+
+    for (const el of blockEls) {
+      const canvas = await html2canvas(el, {
+        scale: 2,
+        useCORS: true,
+        logging: false,
+        backgroundColor: '#ffffff',
+        windowWidth: RENDER_WIDTH_PX,
+      })
+
+      let imgWidthMm = contentWidth
+      let imgHeightMm = (canvas.height * imgWidthMm) / canvas.width
+
+      if (imgHeightMm > contentHeight) {
+        imgHeightMm = contentHeight
+        imgWidthMm = (canvas.width * imgHeightMm) / canvas.height
+      }
+
+      const remaining = pageHeight - marginY - cursorY
+      if (!isFirstOnPage && imgHeightMm > remaining) {
+        doc.addPage()
+        cursorY = marginY
+        isFirstOnPage = true
+      }
+
+      const xOffset = marginX + (contentWidth - imgWidthMm) / 2
+      doc.addImage(canvas.toDataURL('image/png'), 'PNG', xOffset, cursorY, imgWidthMm, imgHeightMm)
+      cursorY += imgHeightMm + blockGap
+      isFirstOnPage = false
+    }
+
+    const now = new Date()
+    const year = now.getFullYear()
+    const month = String(now.getMonth() + 1).padStart(2, '0')
+    const day = String(now.getDate()).padStart(2, '0')
+    const titleText = String(draft?.title || '').trim()
+    const safeTitle = titleText
+      ? titleText.replace(/[\\/:*?"<>|]+/g, '_').slice(0, 30)
+      : '발명품_명세서'
+    const fileName = `${year}-${month}-${day}_${safeTitle}.pdf`
+    doc.save(fileName)
+  } finally {
+    document.body.removeChild(stage)
+  }
+}
+
+if (savePdfBtn) {
+  savePdfBtn.addEventListener('click', async () => {
+    const draft = collectDraft()
+    const hasAnyContent = FIELDS.some((f) => String(draft?.[f.id] || '').trim().length > 0)
+    if (!hasAnyContent) {
+      if (savePdfStatusEl) savePdfStatusEl.textContent = '먼저 명세서를 작성해 주세요.'
+      return
+    }
+
+    const drawingImage = getDrawingImage()
+    const issues = collectReviewIssues()
+
+    savePdfBtn.disabled = true
+    if (savePdfStatusEl) savePdfStatusEl.textContent = 'PDF를 만들고 있어요…'
+    try {
+      await generateInventionSpecPdf(draft, drawingImage, issues)
+      saveDraft(draft)
+      persistInventionSpecActivity(draft)
+      if (savePdfStatusEl) savePdfStatusEl.textContent = 'PDF로 저장했어요!'
+    } catch (error) {
+      console.error('PDF 생성 오류:', error)
+      if (savePdfStatusEl) {
+        savePdfStatusEl.textContent = error?.message || 'PDF 저장 중 오류가 발생했어요.'
+      }
+    } finally {
+      savePdfBtn.disabled = false
+      window.setTimeout(() => {
+        if (savePdfStatusEl && savePdfStatusEl.textContent === 'PDF로 저장했어요!') {
+          savePdfStatusEl.textContent = ''
+        }
+      }, 2500)
     }
   })
 }

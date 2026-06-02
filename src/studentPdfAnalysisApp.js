@@ -38,7 +38,7 @@ export function mountStudentPdfAnalysis(rootEl, options = {}) {
       <div class="analysis-header">
         <div class="analysis-title-section">
           <h2>명세서 특징 요약정리 하기</h2>
-          <button id="analyze-btn" type="button" disabled>명세서 분석하기</button>
+          <button id="analyze-btn" type="button" class="btn-primary" disabled>명세서 분석하기</button>
         </div>
       </div>
       <p id="analysis-status" class="analysis-status">${escapeHtml(
@@ -53,7 +53,7 @@ export function mountStudentPdfAnalysis(rootEl, options = {}) {
         ${createAnalysisCard('발명품의 재료', true)}
       </div>
       <div class="analysis-actions">
-        <button id="go-to-idea-btn" type="button" disabled>아이디어 창출하기</button>
+        <button id="go-to-idea-btn" type="button" class="btn-secondary" disabled>아이디어 창출하기</button>
       </div>
     </section>`
 
@@ -74,7 +74,7 @@ export function mountStudentPdfAnalysis(rootEl, options = {}) {
           <label class="sr-only" for="coach-input">메시지 입력</label>
           <textarea id="coach-input" rows="3" placeholder="명세서를 읽다가 궁금한 점이나, 이렇게 이해했는지 확인받고 싶은 내용을 적어 보세요…"></textarea>
           <div class="coach-compose-actions">
-            <button id="coach-send" type="button">보내기</button>
+            <button id="coach-send" type="button" class="btn-secondary">보내기</button>
           </div>
         </div>
       </section>
@@ -101,7 +101,7 @@ export function mountStudentPdfAnalysis(rootEl, options = {}) {
         </div>
       </div>
       <div class="explore-reflection-actions">
-        <button id="save-reflection-btn" type="button" disabled>내 생각 정리 저장하기</button>
+        <button id="save-reflection-btn" type="button" class="btn-secondary" disabled>내 생각 정리 저장하기</button>
       </div>
     </section>`
     : ''
@@ -219,7 +219,7 @@ export function mountStudentPdfAnalysis(rootEl, options = {}) {
 
   function setCoachWelcome() {
     const intro = coachAnalysisReady()
-      ? '안녕하세요, 발명 보조교사입니다. 오른쪽에 AI가 정리한 명세서 요약도 함께 있어요. 본문·요약과 관련해 확인하고 싶은 점을 물어보세요.'
+      ? '안녕! 나는 발명 도우미야 🤖 나와 대화를 하고, 자신의 생각을 정리한다면, 명세서의 특징을 요약 정리 받을 수 있어!\n궁금한 거 있으면 편하게 물어봐! 쉽게 설명해 줄게!'
       : '안녕하세요, 발명 보조교사입니다. 지금은 아직 AI 요약 전이에요. 올려 주신 PDF에서 추출한 명세서 본문만 바탕으로 질문에 답해 드릴게요. 읽다가 어려운 부분이나 확인하고 싶은 점을 편하게 물어보세요.'
     coachHistory = [{ role: 'assistant', content: intro }]
     renderCoachMessages()

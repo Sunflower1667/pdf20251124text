@@ -31,7 +31,7 @@ app.innerHTML = `
   <div class="seed-page">
     <header class="seed-header">
       <h1>나의 발명 씨앗 찾기</h1>
-      <p class="seed-subtitle">관심사와 평소 느꼈던 불편함을 적어 보면, 발명 아이디어로 자라날 핵심 키워드를 AI가 추천해 줘요.</p>
+      <p class="seed-subtitle">평소에 불편했던 게 있나요? 거기서 발명 아이디어가 시작되요!</p>
     </header>
 
     <div class="seed-grid">
@@ -40,8 +40,9 @@ app.innerHTML = `
         <p class="seed-card-desc">관심 있는 분야를 골라 보고, 평소에 겪었던 불편함을 한 문장으로 적어 주세요.</p>
 
         <div class="seed-section">
-          <strong>1. 관심사 버블 (여러 개 선택 가능)</strong>
+          <strong>관심 있는 분야를 골라봐요 — 여러 개도 OK!</strong>
           <div class="chip-list" id="interest-chip-list"></div>
+          <p class="chip-counter" id="interest-counter" hidden></p>
 
           <div class="custom-input-row">
             <input
@@ -56,24 +57,22 @@ app.innerHTML = `
         </div>
 
         <div class="seed-section">
-          <strong>2. 불편함 입력</strong>
-          <label for="discomfort-text" class="seed-card-desc" style="margin:0;">
-            언제 어디서 어떤 점이 불편했나요?
-          </label>
+          <strong>그 분야에서 불편했던 점을 써봐요</strong>
           <textarea
             id="discomfort-text"
             class="discomfort-textarea"
             maxlength="400"
-            placeholder="예) 비 오는 날 우산을 든 채 가방을 메면 어깨가 자꾸 젖어서 불편했어요."
+            placeholder="예: 캠핑 가서 설거지할 때 물이 없어서 너무 힘들었어"
           ></textarea>
+          <p class="discomfort-hint">정답은 없어요! 떠오르는 대로 써봐요!</p>
         </div>
 
         <div class="seed-actions">
           <button type="button" class="btn-primary" id="recommend-btn">
-            ✨ AI 키워드 추천 받기
+            ✦ AI가 키워드 뽑아줄게요
           </button>
-          <button type="button" class="btn-secondary" id="save-btn">현재 내용 저장하기</button>
-          <button type="button" class="btn-secondary" id="reset-btn">처음부터 다시</button>
+          <button type="button" class="btn-secondary" id="save-btn">저장</button>
+          <button type="button" class="btn-ghost" id="reset-btn">다시 쓸게요</button>
         </div>
         <div class="seed-status" id="seed-status" role="status" aria-live="polite"></div>
       </section>
@@ -114,6 +113,7 @@ app.innerHTML = `
 `
 
 const chipList = document.querySelector('#interest-chip-list')
+const interestCounter = document.querySelector('#interest-counter')
 const customInput = document.querySelector('#custom-interest-input')
 const customAddBtn = document.querySelector('#custom-interest-add')
 const discomfortText = document.querySelector('#discomfort-text')
@@ -179,6 +179,20 @@ function renderChips() {
       `
     })
     .join('')
+
+  updateInterestCounter()
+}
+
+function updateInterestCounter() {
+  if (!interestCounter) return
+  const count = selectedInterests.size
+  if (count === 0) {
+    interestCounter.hidden = true
+    interestCounter.textContent = ''
+    return
+  }
+  interestCounter.hidden = false
+  interestCounter.textContent = `✓ ${count}개 선택됨 — 더 골라도 좋아!`
 }
 
 renderChips()

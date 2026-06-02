@@ -1,0 +1,148 @@
+/* ==========================================================================
+   Button Hierarchy System (Smart Tinker)
+
+   학생용 발명교육 앱의 통일된 버튼 위계.
+   인지부하를 줄이기 위해 다음 4단계로만 사용한다.
+
+   1) .btn-primary  : 화면당 1개. 가장 중요한 다음 행동 (예: "AI 키워드 추천 받기",
+                       "이 아이디어로 갈게!", "아이디어 뽑아줘")
+   2) .btn-secondary: 보조 액션 (예: "저장", "다시")
+   3) .btn-ghost    : 취소·되돌리기 (예: "다시 쓸게", "처음부터")
+   4) .btn-danger   : 종료·삭제 (예: "활동 종료하기")
+
+   ※ 한 화면에 .btn-primary 는 반드시 1개만 두세요.
+   ========================================================================== */
+
+.btn-primary,
+.btn-secondary,
+.btn-ghost,
+.btn-danger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px 22px;
+  border-radius: 999px;
+  font-family: inherit;
+  font-size: 1rem;
+  line-height: 1.2;
+  cursor: pointer;
+  text-decoration: none;
+  user-select: none;
+  transition: background 150ms ease, color 150ms ease, border-color 150ms ease,
+    box-shadow 150ms ease, transform 150ms ease, opacity 150ms ease;
+}
+
+/* ── Primary : 메인 CTA (옐로) ─────────────────────────────────────── */
+.btn-primary {
+  background: #FFE020;
+  color: #1A1A1A;
+  border: 1.5px solid transparent;
+  font-weight: 600;
+  box-shadow: 0 4px 14px rgba(255, 224, 32, 0.35);
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: #FFD60A;
+  transform: translateY(-1px);
+  box-shadow: 0 6px 18px rgba(255, 214, 10, 0.45);
+}
+
+.btn-primary:active:not(:disabled) {
+  transform: translateY(0);
+  box-shadow: 0 2px 8px rgba(255, 214, 10, 0.35);
+}
+
+.btn-primary:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+/* ── Secondary : 보조 액션 (그레이) ────────────────────────────────── */
+.btn-secondary {
+  background: #F0F0F0;
+  color: #555555;
+  border: 1.5px solid transparent;
+  font-weight: 500;
+}
+
+.btn-secondary:hover:not(:disabled) {
+  background: #E5E5E5;
+  color: #1A1A1A;
+  transform: translateY(-1px);
+}
+
+.btn-secondary:active:not(:disabled) {
+  transform: translateY(0);
+  background: #DCDCDC;
+}
+
+.btn-secondary:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* ── Ghost : 취소/되돌리기 (블루 아웃라인) ─────────────────────────── */
+.btn-ghost {
+  background: transparent;
+  color: #3A8DFF;
+  border: 1.5px solid #3A8DFF;
+  font-weight: 500;
+}
+
+.btn-ghost:hover:not(:disabled) {
+  background: rgba(58, 141, 255, 0.08);
+  transform: translateY(-1px);
+}
+
+.btn-ghost:active:not(:disabled) {
+  transform: translateY(0);
+  background: rgba(58, 141, 255, 0.14);
+}
+
+.btn-ghost:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* ── Danger : 종료/삭제 (레드) ────────────────────────────────────── */
+.btn-danger {
+  background: #FF6B6B;
+  color: #ffffff;
+  border: 1.5px solid transparent;
+  font-weight: 600;
+  box-shadow: 0 4px 14px rgba(255, 107, 107, 0.3);
+}
+
+.btn-danger:hover:not(:disabled) {
+  background: #ff5252;
+  transform: translateY(-1px);
+  box-shadow: 0 6px 18px rgba(255, 82, 82, 0.4);
+}
+
+.btn-danger:active:not(:disabled) {
+  transform: translateY(0);
+  box-shadow: 0 2px 8px rgba(255, 82, 82, 0.3);
+}
+
+.btn-danger:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+/* 모바일에서 너비 100% 옵션 */
+.btn-block {
+  width: 100%;
+}
+
+/* 작은 사이즈 옵션 */
+.btn-sm {
+  padding: 8px 16px;
+  font-size: 0.9rem;
+}

@@ -100,8 +100,8 @@ app.innerHTML = `
       </div>
 
       <div class="drawing-actions">
-        <button id="save-drawing-btn" type="button">그림 저장하기</button>
-        <button id="download-drawing-btn" type="button">그림 다운로드</button>
+        <button id="save-drawing-btn" type="button" class="btn-secondary">그림 저장하기</button>
+        <button id="download-drawing-btn" type="button" class="btn-secondary">그림 다운로드</button>
       </div>
     </section>
     </div>
