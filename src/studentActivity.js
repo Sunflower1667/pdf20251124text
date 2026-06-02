@@ -969,6 +969,63 @@ async function _generateFinalPdfImpl(options = {}) {
       
       // 안전 마진 추가 (2픽셀 여유)
       const safePageHeightPx = pageHeightPx - 2
+
+      // 페이지 경계에서 텍스트가 잘리지 않도록, 자르려는 위치 근처에서
+      // "텍스트가 없는 가로 줄"(글자 줄 사이의 빈 줄, 배경색이 흰색이든
+      // 컬러 박스이든 상관없이)을 찾아 그곳에서 페이지를 나눕니다.
+      //
+      // 핵심 아이디어: 글자가 있는 가로줄은 글자 경계마다 색이 급변하므로
+      // 가로로 스캔했을 때 "에지 수"가 매우 많습니다. 글자 줄 사이의 빈
+      // 줄은 배경 한두 가지 색이 매끄럽게 이어지므로 에지가 거의 없습니다.
+      const sourceCtx = canvas.getContext('2d')
+      // 페이지 높이의 약 20%까지(또는 최대 ~400px)만 위로 거슬러 올라가 검사
+      const maxLookback = Math.min(Math.floor(safePageHeightPx * 0.2), 400)
+
+      const findSafeCutY = (proposedCutY) => {
+        const lookFromY = Math.min(proposedCutY, totalHeight)
+        const minY = Math.max(0, lookFromY - maxLookback)
+        const stripHeight = lookFromY - minY
+        if (stripHeight <= 0) return proposedCutY
+        let imageData
+        try {
+          imageData = sourceCtx.getImageData(0, minY, canvas.width, stripHeight)
+        } catch (e) {
+          // 보안 정책 등으로 픽셀 접근이 막힌 경우 원래 위치 사용
+          console.warn('[generateFinalPdf] 캔버스 픽셀 접근 실패, 안전 분할 비활성화:', e)
+          return proposedCutY
+        }
+        const data = imageData.data
+        const w = canvas.width
+        // 가로로 약 400 포인트 정도 촘촘히 샘플링 (글자 폭보다 작게)
+        const sampleStep = Math.max(1, Math.floor(w / 400))
+        // 한 픽셀 ↔ 인접 샘플 간 색차 합이 이 값을 넘으면 "에지"로 카운트
+        const edgeThreshold = 30
+        // 글자 줄 사이의 빈 줄에서 허용할 최대 에지 수
+        // (섹션 박스의 좌우 경계 등 배경 전환은 보통 4~8 정도이므로 여유 있게)
+        const safeEdgeMax = 10
+
+        for (let y = stripHeight - 1; y >= 0; y--) {
+          const rowStart = y * w * 4
+          let edgeCount = 0
+          let prevIdx = rowStart
+          for (let x = sampleStep; x < w; x += sampleStep) {
+            const idx = rowStart + x * 4
+            const dr = Math.abs(data[idx] - data[prevIdx])
+            const dg = Math.abs(data[idx + 1] - data[prevIdx + 1])
+            const db = Math.abs(data[idx + 2] - data[prevIdx + 2])
+            if (dr + dg + db > edgeThreshold) {
+              edgeCount++
+              if (edgeCount > safeEdgeMax) break
+            }
+            prevIdx = idx
+          }
+          if (edgeCount <= safeEdgeMax) {
+            return minY + y
+          }
+        }
+        // 안전한 줄을 찾지 못하면 원래 위치 그대로 사용
+        return proposedCutY
+      }
       
       while (sourceY < totalHeight) {
         if (pageNum > 0) {
@@ -985,6 +1042,14 @@ async function _generateFinalPdfImpl(options = {}) {
         if (remainingHeight <= safePageHeightPx + 10) {
           // 마지막 페이지에 가까우면 남은 모든 내용 포함
           displayHeightPx = remainingHeight
+        } else {
+          // 마지막 페이지가 아니면 텍스트가 잘리지 않는 안전한 위치를 탐색
+          const proposedCutY = sourceY + displayHeightPx
+          const safeCutY = findSafeCutY(proposedCutY)
+          // 너무 적은 진척이면(비정상) 원래 위치 사용하여 무한 루프 방지
+          if (safeCutY - sourceY > Math.floor(safePageHeightPx * 0.5)) {
+            displayHeightPx = safeCutY - sourceY
+          }
         }
         
         // mm로 변환 (정확한 비율 유지)
