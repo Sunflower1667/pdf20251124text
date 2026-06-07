@@ -101,13 +101,13 @@ if (!analysisData || Object.keys(analysisData).length === 0) {
 
       <section class="idea-generation">
         <div class="section-header">
-          <h2>단어 3개를 적어봐요</h2>
+          <h2>단어 3개와 내가 분석한 발명품의 단점을 입력해주세요.</h2>
         </div>
 
         <details class="triz-guide">
           <summary>🛠️ 발명 치트키 40: TRIZ 발명 기법 살펴보기</summary>
           <div class="triz-guide-body">
-            <p class="triz-guide-intro">아래 40가지는 세상 속 발명품을 분석해 정리한 "생각의 기술"이에요. AI가 학생이 입력한 단어와 가장 잘 어울리는 기법을 골라 새 아이디어를 만들어줘요.</p>
+            <p class="triz-guide-intro">아래 40가지는 세상 속 발명품을 분석해 정리한 "생각의 기술"이에요. AI가 학생이 입력한 단어와 단점을 가장 잘 보완해주는 기법을 골라 새 아이디어를 만들어줘요.</p>
             ${buildTrizGuideHtml()}
           </div>
         </details>
@@ -120,6 +120,16 @@ if (!analysisData || Object.keys(analysisData).length === 0) {
             class="keyword-input"
             placeholder="예: 친환경, 경량, 이동편리"
           />
+        </div>
+
+        <div class="keyword-input-row">
+          <label for="drawback-input" class="keyword-label">앞서 분석한 발명품에서 찾은 단점(아쉬운 점)을 적어 보세요.</label>
+          <textarea
+            id="drawback-input"
+            class="keyword-input drawback-input"
+            rows="3"
+            placeholder="예: 무게가 너무 무거워서 휴대하기 불편하고, 배터리가 빨리 닳아요."
+          ></textarea>
         </div>
 
         <div class="section-header section-header-bottom">
@@ -219,6 +229,7 @@ const refinedIdeasSection = document.querySelector('#refined-ideas')
 const refinedCards = document.querySelector('#refined-cards')
 const saveResultBtn = document.querySelector('#save-result-btn')
 const keywordInput = document.querySelector('#keyword-input')
+const drawbackInput = document.querySelector('#drawback-input')
 const diagnosisSection = document.querySelector('#idea-diagnosis')
 const diagnosisCards = document.querySelector('#diagnosis-cards')
 const diagnosisAnalysisBody = document.querySelector('#diagnosis-analysis-body')
@@ -260,6 +271,7 @@ let selectedIdeaIndex = -1
 let chatHistory = []
 let refinedIdeasData = []
 let lastKeywords = []
+let lastDrawbacks = ''
 let selectionReason = ''
 
 const SELECTION_REASON_PLACEHOLDER =
@@ -290,6 +302,13 @@ if (generateIdeasBtn) {
       return
     }
 
+    const drawbacks = (drawbackInput?.value || '').trim()
+    if (!drawbacks) {
+      alert('앞서 분석한 발명품의 단점을 입력해 주세요.')
+      drawbackInput?.focus()
+      return
+    }
+
     const apiKey = import.meta.env.VITE_OPENAI_API_KEY
     if (!apiKey) {
       alert('.env 파일에 VITE_OPENAI_API_KEY를 설정해 주세요.')
@@ -300,8 +319,9 @@ if (generateIdeasBtn) {
     generateIdeasBtn.textContent = '아이디어 생성 중...'
 
     try {
-      generatedIdeas = await generateIdeas(apiKey, analysisData, keywords)
+      generatedIdeas = await generateIdeas(apiKey, analysisData, keywords, drawbacks)
       lastKeywords = keywords
+      lastDrawbacks = drawbacks
       selectedIdeaIndex = -1
       chatHistory = []
       if (chatSection) chatSection.style.display = 'none'
@@ -314,7 +334,7 @@ if (generateIdeasBtn) {
 
       // Firebase에 활동 저장
       const { saveStudentActivity } = await import('./activityStorage.js')
-      await saveStudentActivity('idea', { ideas: generatedIdeas, keywords })
+      await saveStudentActivity('idea', { ideas: generatedIdeas, keywords, drawbacks })
       
       // 다시 생성 버튼 활성화
       if (regenerateIdeasBtn) {
@@ -366,6 +386,17 @@ if (regenerateIdeasBtn) {
       return
     }
 
+    // 단점 입력 확인 (비어 있으면 마지막 단점 재사용)
+    let drawbacks = (drawbackInput?.value || '').trim()
+    if (!drawbacks) {
+      drawbacks = lastDrawbacks
+    }
+    if (!drawbacks) {
+      alert('앞서 분석한 발명품의 단점을 먼저 입력해 주세요.')
+      drawbackInput?.focus()
+      return
+    }
+
     // 기존 상태 초기화
     selectedIdeaIndex = -1
     chatHistory = []
@@ -381,8 +412,9 @@ if (regenerateIdeasBtn) {
     regenerateIdeasBtn.textContent = '아이디어 생성 중...'
 
     try {
-      generatedIdeas = await generateIdeas(apiKey, analysisData, keywords)
+      generatedIdeas = await generateIdeas(apiKey, analysisData, keywords, drawbacks)
       lastKeywords = keywords
+      lastDrawbacks = drawbacks
       displayIdeas(generatedIdeas)
       flushStudentIdeaSessionToStorage()
       notifyParentIdeaStep('generation')
@@ -430,6 +462,7 @@ if (saveChatBtn) {
       await saveStudentActivity('idea', {
         ideas: generatedIdeas,
         keywords: lastKeywords,
+        drawbacks: lastDrawbacks,
         selectedIdea: selectedIdea,
         selectionReason: selectionReason,
         chatHistory: chatHistory,
@@ -504,24 +537,28 @@ if (saveResultBtn) {
   })
 }
 
-async function generateIdeas(apiKey, analysis, keywords) {
+async function generateIdeas(apiKey, analysis, keywords, drawbacks = '') {
   const keywordText =
     Array.isArray(keywords) && keywords.length > 0
       ? keywords.join(', ')
       : '입력된 키워드 없음'
+  const drawbackText = (drawbacks || '').trim() || '입력된 단점 없음'
 
   const trizListText = buildTrizPromptText()
 
-  const prompt = `너는 중학교 기술 교사이며 TRIZ 발명 전문가야. 학생이 입력한 3가지 키워드를 바탕으로 TRIZ의 40가지 원리 중 가장 적합한 3가지를 골라 발명 아이디어를 제안해줘. 단, 결과만 보여주지 말고 **[적용된 TRIZ 원리]**와 [그 원리를 선택한 이유]를 중학생 수준에서 친절하게 설명해야 합니다.
+  const prompt = `너는 중학교 기술 교사이며 TRIZ 발명 전문가야. 학생이 입력한 3가지 키워드와, 학생이 직접 분석한 기존 발명품의 단점을 함께 고려해서, TRIZ의 40가지 원리 중 가장 적합한 3가지를 골라 발명 아이디어를 제안해줘. 단, 결과만 보여주지 말고 **[적용된 TRIZ 원리]**와 [그 원리를 선택한 이유 — 어떤 단점을 어떻게 보완하는지 포함]를 중학생 수준에서 친절하게 설명해야 합니다.
 
 [TRIZ 발명 치트키 40]
 ${trizListText}
 
 [규칙]
-1. 아이디어 3개는 서로 다른 TRIZ 기법을 골라 적용해 주세요. (같은 기법 중복 금지)
-2. 각 아이디어는 학생이 입력한 키워드와 명세서의 특징/재료가 자연스럽게 녹아들어야 해요.
-3. 너무 추상적이지 않고, 중학생이 실제 만들거나 상상해볼 수 있을 정도로 구체적이어야 해요.
-4. 응답의 모든 한글 문장은 해요체("~예요", "~어요")로 통일해 주세요.
+1. 반드시 위 TRIZ 발명 치트키 40가지 원리 중에서 선택해 적용해야 해요. (TRIZ 기법을 활용하지 않은 아이디어는 금지)
+2. 아이디어 3개는 서로 다른 TRIZ 기법을 골라 적용해 주세요. (같은 기법 중복 금지)
+3. 각 아이디어는 학생이 입력한 키워드 3개와 분명히 연결되어야 해요. (키워드 중 어떤 의미가 어떻게 반영됐는지 설명에 자연스럽게 드러나야 함)
+4. 각 아이디어는 학생이 입력한 "기존 발명품의 단점"을 실제로 보완하거나 해결할 수 있어야 해요. 단점을 어떻게 개선했는지가 description이나 trizPrinciple.applied에 명확히 드러나야 해요.
+5. 명세서의 특징/재료를 힌트로 활용해 주세요.
+6. 너무 추상적이지 않고, 중학생이 실제 만들거나 상상해볼 수 있을 정도로 구체적이어야 해요.
+7. 응답의 모든 한글 문장은 해요체("~예요", "~어요")로 통일해 주세요.
 
 [명세서 정보]
 - 특허 이름: ${analysis.patentName || '정보 없음'}
@@ -531,6 +568,9 @@ ${trizListText}
 
 [학생이 입력한 키워드 3개]
 - ${keywordText}
+
+[학생이 분석한 기존 발명품의 단점]
+${drawbackText}
 
 [프로토타입 스케치 SVG 요구사항]
 - 시점: 평면도보다는 정면도나 대각선에서 본 모습 위주.
@@ -982,6 +1022,7 @@ async function pickIdea(index) {
     await saveStudentActivity('idea', {
       ideas: generatedIdeas,
       keywords: lastKeywords,
+      drawbacks: lastDrawbacks,
       selectedIdea: idea,
       selectedIdeaId: ideaId,
       selectionReason: selectionReason,
@@ -1063,8 +1104,12 @@ function tryRestoreStudentIdeaSession() {
 
     generatedIdeas = s.ideas
     lastKeywords = Array.isArray(s.keywords) ? s.keywords : []
+    lastDrawbacks = typeof s.drawbacks === 'string' ? s.drawbacks : ''
     if (keywordInput && lastKeywords.length) {
       keywordInput.value = lastKeywords.join(', ')
+    }
+    if (drawbackInput && lastDrawbacks) {
+      drawbackInput.value = lastDrawbacks
     }
     displayIdeas(generatedIdeas)
     if (regenerateIdeasBtn) {
@@ -1179,6 +1224,7 @@ async function sendMessage() {
           await saveStudentActivity('idea', {
             ideas: generatedIdeas,
             keywords: lastKeywords,
+            drawbacks: lastDrawbacks,
             selectedIdea: selectedIdea,
             selectionReason: selectionReason,
             chatHistory: chatHistory,
@@ -1381,6 +1427,7 @@ ${conversationText}
       await saveStudentActivity('idea', {
         ideas: generatedIdeas,
         keywords: lastKeywords,
+        drawbacks: lastDrawbacks,
         selectedIdea: selectedIdea,
         selectionReason: selectionReason,
         chatHistory: chatHistory,
@@ -1707,15 +1754,19 @@ function flushStudentIdeaSessionToStorage() {
   const kws = kwRaw
     ? kwRaw.split(/[,，]/).map((s) => s.trim()).filter(Boolean)
     : lastKeywords
+  const drawbackRaw = (drawbackInput?.value || '').trim()
+  const drawbacks = drawbackRaw || lastDrawbacks
   const hasWork =
     generatedIdeas.length > 0 ||
     (kws && kws.length > 0) ||
+    (drawbacks && drawbacks.length > 0) ||
     (chatHistory && chatHistory.length > 1) ||
     (refinedIdeasData && refinedIdeasData.length > 0)
   if (!hasWork) return
   const payload = {
     ideas: generatedIdeas,
     keywords: kws?.length ? kws : lastKeywords,
+    drawbacks,
     selectedIdea:
       selectedIdeaIndex >= 0 && generatedIdeas[selectedIdeaIndex]
         ? generatedIdeas[selectedIdeaIndex]

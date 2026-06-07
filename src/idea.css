@@ -176,6 +176,12 @@ h1::before {
   font-size: 0.9rem;
 }
 
+.drawback-input {
+  resize: vertical;
+  min-height: 72px;
+  line-height: 1.5;
+}
+
 .keyword-input:focus {
   outline: none;
   border-color: #2563eb;
