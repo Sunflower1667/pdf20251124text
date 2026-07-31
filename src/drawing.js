@@ -21,8 +21,16 @@ const VISION_MODEL =
   (import.meta.env.VITE_OPENAI_MODEL || '').trim() ||
   'gpt-4o-mini'
 
-const COACH_ANALYZE_PROMPT =
-  '이 그림을 발명품 도면으로 봤을 때, 다른 사람이 이해하거나 만들어 보기에 부족한 점을 항목으로 나눠 알려줘. (비난 없이 격려하는 존댓말로)'
+/** 4차시 「아이디어 만들기」에서 학생이 고르고 구체화한 발명 */
+const IDEA_RESTORE_KEY = 'studentIdeaSessionRestore'
+/** 이 화면에서 학생이 쓴 그림 설명과 점검 기록 */
+const DRAWING_CHECK_KEY = 'pro10-drawing-check'
+
+const KOREAN_ONLY = '- 반드시 한국어로만 답해.'
+const IMAGE_QUALITY =
+  '- 그림에서 흐릿하거나 잘려서 알아보기 어려운 부분은 짐작해서 단정하지 마. 무엇이 잘 안 보이는지만 짚어 줘.'
+const SCOPE_GUARD =
+  '- 발명과 관계없는 것(그림 솜씨, 색칠, 글씨체, 선의 깔끔함)은 말하지 마.'
 
 const app = document.querySelector('#app')
 
@@ -104,21 +112,61 @@ app.innerHTML = `
         <button id="download-drawing-btn" type="button" class="btn-secondary">그림 다운로드</button>
       </div>
     </section>
+
+    <section class="drawing-desc" aria-labelledby="drawing-desc-title">
+      <h2 id="drawing-desc-title">내 그림 설명 쓰기</h2>
+      <p class="drawing-desc-hint">
+        그림 속 부분들이 각각 무엇이고 어떻게 움직이는지 글로 써 보세요.
+        아래 점검에서 이 설명과 그림을 나란히 놓고 견주어 봅니다.
+      </p>
+      <label class="sr-only" for="drawing-desc-input">내 그림 설명</label>
+      <textarea
+        id="drawing-desc-input"
+        rows="4"
+        placeholder="예: 위쪽 손잡이를 누르면 아래 집게가 벌어져요. 가운데 점선은 접히는 곳이에요."
+      ></textarea>
+    </section>
+
+    <section class="drawing-check" aria-labelledby="drawing-check-title">
+      <h2 id="drawing-check-title">그림과 설명 맞춰 보기</h2>
+
+      <div class="drawing-check-step">
+        <div class="drawing-check-step-head">
+          <span class="drawing-check-step-num">1</span>
+          <h3>스스로 살펴보기</h3>
+        </div>
+        <p class="drawing-check-hint">
+          그림과 설명을 견주어 볼 수 있는 질문 3개를 받아, 스스로 답해 보세요.
+        </p>
+        <button type="button" id="drawing-crosscheck-btn" class="drawing-check-btn">점검 질문 받기</button>
+        <p id="drawing-crosscheck-status" class="drawing-check-status" role="status" aria-live="polite" hidden></p>
+        <div id="drawing-crosscheck-list" class="drawing-check-list"></div>
+      </div>
+
+      <div class="drawing-check-step" id="drawing-review-step" hidden>
+        <div class="drawing-check-step-head">
+          <span class="drawing-check-step-num">2</span>
+          <h3>고친 도면 검토받기</h3>
+        </div>
+        <p class="drawing-check-hint">
+          세 질문에 모두 답하고 도면을 고친 뒤에 눌러 주세요.
+          자리 배치, 만들 수 있는 구조, 빠진 부품을 차례로 살펴봐 줍니다.
+        </p>
+        <button type="button" id="drawing-review-btn" class="drawing-check-btn">고친 도면 검토받기</button>
+        <p id="drawing-review-status" class="drawing-check-status" role="status" aria-live="polite" hidden></p>
+        <div id="drawing-review-result" class="drawing-review-result"></div>
+      </div>
+    </section>
     </div>
 
     <aside class="drawing-coach" aria-label="그림 도우미">
       <div class="drawing-coach-head">
         <h2>그림 도우미</h2>
         <p class="drawing-coach-lead">
-          여러분이 그린 도면이 발명품을 이해하고 설명하기에 충분한지 확인해봅시다. 여러분이 어려워하는 부분, 놓친 부분을 알려줄께요
+          그리다가 막히는 곳이 있으면 물어보세요. 그림과 설명 점검은 왼쪽 아래 「그림과 설명 맞춰 보기」에서 할 수 있어요.
         </p>
       </div>
       <div id="drawing-coach-messages" class="drawing-coach-messages" role="log" aria-live="polite"></div>
-      <div class="drawing-coach-actions">
-        <button type="button" id="drawing-coach-analyze-btn" class="drawing-coach-primary-btn">
-          나의 그림 확인하기
-        </button>
-      </div>
       <div class="drawing-coach-compose">
         <label class="sr-only" for="drawing-coach-input">도우미에게 질문하기</label>
         <textarea
@@ -163,13 +211,29 @@ let textIdCounter = 0
 let selectedTextItem = null
 let currentFontSize = 28
 const coachMessagesEl = document.getElementById('drawing-coach-messages')
-const coachAnalyzeBtn = document.getElementById('drawing-coach-analyze-btn')
 const coachSendBtn = document.getElementById('drawing-coach-send-btn')
 const coachInput = document.getElementById('drawing-coach-input')
+const drawingDescInput = document.getElementById('drawing-desc-input')
+const crossCheckBtn = document.getElementById('drawing-crosscheck-btn')
+const crossCheckStatusEl = document.getElementById('drawing-crosscheck-status')
+const crossCheckListEl = document.getElementById('drawing-crosscheck-list')
+const reviewStepEl = document.getElementById('drawing-review-step')
+const reviewBtn = document.getElementById('drawing-review-btn')
+const reviewStatusEl = document.getElementById('drawing-review-status')
+const reviewResultEl = document.getElementById('drawing-review-result')
 
-/** @type {{ role: 'user' | 'assistant'; text: string; hideInUi?: boolean }[]} */
+/** @type {{ role: 'user' | 'assistant'; text: string }[]} */
 let coachThread = []
 let coachBusy = false
+
+/** @type {{ focus: string, question: string, answer: string }[]} */
+let crossCheckQuestions = []
+/** 1단계 질문을 받은 시점의 도면 지문 — 학생이 도면을 고쳤는지 견주는 데 쓴다. */
+let crossCheckFingerprint = ''
+let crossCheckBusy = false
+/** @type {{ goodPoint: string, checks: { criterion: string, level: string, comment: string }[], whereToLook: string[], nextStep: string } | null} */
+let reviewResult = null
+let reviewBusy = false
 
 let isDrawing = false
 let activePointerId = null
@@ -783,7 +847,6 @@ function renderCoachMessages() {
     return
   }
   coachMessagesEl.innerHTML = coachThread
-    .filter((m) => !m.hideInUi)
     .map((m) => {
       const cls =
         m.role === 'user'
@@ -798,7 +861,6 @@ function renderCoachMessages() {
 
 function setCoachBusy(busy) {
   coachBusy = busy
-  if (coachAnalyzeBtn) coachAnalyzeBtn.disabled = busy
   if (coachSendBtn) coachSendBtn.disabled = busy
 }
 
@@ -854,11 +916,8 @@ async function requestDrawingCoachReply(userText) {
   return out.trim()
 }
 
-/**
- * @param {string} userText
- * @param {{ hideUserMessage?: boolean }} [opts]
- */
-async function runCoachTurn(userText, opts = {}) {
+/** @param {string} userText */
+async function runCoachTurn(userText) {
   if (!userText.trim() || coachBusy) return
   if (isCanvasEffectivelyBlank()) {
     alert('먼저 캔버스에 발명품을 그리거나 이미지를 올린 뒤 조언을 받아 보세요.')
@@ -868,9 +927,7 @@ async function runCoachTurn(userText, opts = {}) {
   setCoachBusy(true)
   try {
     const reply = await requestDrawingCoachReply(userText.trim())
-    const userEntry = { role: 'user', text: userText.trim() }
-    if (opts.hideUserMessage) userEntry.hideInUi = true
-    coachThread.push(userEntry, { role: 'assistant', text: reply })
+    coachThread.push({ role: 'user', text: userText.trim() }, { role: 'assistant', text: reply })
     renderCoachMessages()
   } catch (e) {
     const msg = e?.message || String(e)
@@ -883,12 +940,6 @@ async function runCoachTurn(userText, opts = {}) {
   } finally {
     setCoachBusy(false)
   }
-}
-
-if (coachAnalyzeBtn) {
-  coachAnalyzeBtn.addEventListener('click', () => {
-    void runCoachTurn(COACH_ANALYZE_PROMPT, { hideUserMessage: true })
-  })
 }
 
 if (coachSendBtn && coachInput) {
@@ -904,6 +955,582 @@ if (coachSendBtn && coachInput) {
 }
 
 renderCoachMessages()
+
+/* ── 그림과 설명 맞춰 보기 ───────────────────────────────────────────── */
+
+const IDEA_DETAIL_FIELDS = [
+  ['description', '상세 설명'],
+  ['structureOrPrinciple', '구조·작동 원리'],
+  ['features', '특징'],
+  ['howToUse', '사용 방법'],
+  ['materials', '준비물'],
+  ['tools', '필요한 도구'],
+  ['manufacturingSteps', '제작 순서'],
+  ['manufacturing', '제작 방법'],
+  ['expectedEffect', '기대 효과'],
+]
+
+function buildIdeaDetailText(idea) {
+  if (!idea || typeof idea !== 'object') return ''
+  const lines = []
+  for (const [key, label] of IDEA_DETAIL_FIELDS) {
+    const value = idea[key]
+    if (Array.isArray(value)) {
+      const items = value.map((v) => String(v).trim()).filter(Boolean)
+      if (items.length) lines.push(`- ${label}: ${items.join(' / ')}`)
+    } else if (value != null && String(value).trim()) {
+      lines.push(`- ${label}: ${String(value).trim()}`)
+    }
+  }
+  return stripCoachBoldMarkers(lines.join('\n'))
+}
+
+/** 4차시에서 고르고 구체화한 발명 이름과 내용을 읽어 온다. */
+function readIdeaContext() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(IDEA_RESTORE_KEY) || 'null')
+    if (!saved) return { ideaName: '', myIdea: '' }
+    const selected = saved.selectedIdea || null
+    const refinedList = Array.isArray(saved.refinedIdea)
+      ? saved.refinedIdea
+      : saved.refinedIdea
+        ? [saved.refinedIdea]
+        : []
+    const refined = refinedList.length ? refinedList[refinedList.length - 1] : null
+    return {
+      ideaName: String(refined?.name || selected?.name || '').trim(),
+      myIdea: buildIdeaDetailText(refined) || String(selected?.description || '').trim(),
+    }
+  } catch {
+    return { ideaName: '', myIdea: '' }
+  }
+}
+
+function readDrawingDesc() {
+  return String(drawingDescInput?.value || '').trim()
+}
+
+/** 도면이 1단계 이후로 바뀌었는지 견주기 위한 값 */
+function drawingFingerprint(dataUrl) {
+  let hash = 5381
+  for (let i = 0; i < dataUrl.length; i += 1) {
+    hash = ((hash << 5) + hash + dataUrl.charCodeAt(i)) | 0
+  }
+  return `${dataUrl.length}:${hash}`
+}
+
+function setCheckStatus(el, message, mode = 'info') {
+  if (!el) return
+  el.textContent = message || ''
+  el.dataset.mode = mode
+  el.hidden = !message
+}
+
+function parseJsonFromAiText(text) {
+  if (!text) return null
+  let t = String(text).trim()
+  t = t.replace(/^```(?:json)?/i, '').replace(/```$/, '').trim()
+  const open = t.indexOf('{')
+  const close = t.lastIndexOf('}')
+  if (open >= 0 && close > open) t = t.slice(open, close + 1)
+  try {
+    return JSON.parse(t)
+  } catch {
+    return null
+  }
+}
+
+async function requestDrawingVisionJson(prompt) {
+  const apiKey = (import.meta.env.VITE_OPENAI_API_KEY || '').trim()
+  if (!apiKey) throw new Error('NO_API_KEY')
+
+  const imageUrl = await downscaleDataUrlIfNeeded(buildFlattenedImageDataUrl(), 1280)
+
+  const res = await fetch(resolveOpenAiChatCompletionsUrl(), {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
+      model: VISION_MODEL,
+      messages: [
+        {
+          role: 'user',
+          content: [
+            { type: 'text', text: prompt },
+            { type: 'image_url', image_url: { url: imageUrl } },
+          ],
+        },
+      ],
+      max_tokens: 1400,
+      temperature: 0.4,
+    }),
+  })
+
+  if (!res.ok) {
+    const errText = await res.text().catch(() => '')
+    throw new Error(`API 오류 (${res.status}): ${errText.slice(0, 200)}`)
+  }
+
+  const parsed = parseJsonFromAiText(extractChatCompletionText(await res.json()))
+  if (!parsed || typeof parsed !== 'object') {
+    throw new Error('AI 응답을 읽지 못했어요. 버튼을 다시 눌러 주세요.')
+  }
+  return parsed
+}
+
+function buildCrossCheckPrompt({ ideaName, myIdea, drawingDesc }) {
+  return `너는 대한민국 중학생의 발명 학습을 돕는 발명 보조교사야.
+학생이 자기 발명품을 직접 그리고, 그 그림에 대한 설명도 글로 썼어.
+너는 그림과 글을 나란히 놓고 견주어 본 다음, 학생이 스스로 다시 살펴볼 수 있도록 질문 3개를 만들어 줘.
+
+[학생의 발명 이름]
+${ideaName || '(정보 없음)'}
+
+[학생이 4차시에 자세히 쓴 발명 내용]
+${myIdea || '(정보 없음)'}
+
+[학생이 자기 그림에 대해 쓴 설명]
+${drawingDesc || '(작성하지 않음)'}
+
+함께 보낸 이미지가 학생이 직접 그린 도면이야.
+
+[질문 규칙 — 매우 중요]
+- 반드시 질문만 만들어. 무엇이 빠졌다거나 무엇이 잘못됐다고 네가 직접 말하지 마.
+  답, 예시 답안, 고쳐야 할 것도 절대 알려 주지 마. 학생이 스스로 찾아야 해.
+- 가장 중요한 일은 **글과 그림을 견주는 것**이야.
+  글에는 있는데 그림에는 안 보이는 것, 그림에는 있는데 글에 설명이 없는 것,
+  글과 그림이 서로 다르게 말하는 것을 찾아서 질문으로 만들어.
+  · 예시 질문 형태: "설명에는 접어서 넣는다고 썼는데, 그림에서 접히는 곳은 어디일까요?"
+- 3개 질문은 각각 다른 것을 살피게 해.
+  1번은 글에 있는데 그림에서 찾기 어려운 부분
+  2번은 그림에 있는데 글에서 설명하지 않은 부분
+  3번은 다른 사람이 이 그림만 보고도 알 수 있을지
+- 글과 그림이 잘 맞는다면, 억지로 어긋난 곳을 만들어 내지 마.
+  대신 "다른 사람이 처음 봤을 때 무엇을 가장 궁금해할까요?"처럼
+  한 걸음 더 나아가게 하는 질문으로 만들어.
+- 학생이 쓴 표현을 질문 안에 그대로 넣어서, 이 발명에만 해당하는 질문으로 만들어.
+- 한 질문은 한 문장, 45자 이내로 짧게.
+- "예/아니오"로 끝나는 질문 대신, 어디인지 무엇인지 말하게 하는 질문으로 만들어.
+${IMAGE_QUALITY}
+${SCOPE_GUARD}
+- 오늘 할 일은 "발명품 그리고 표현하기"까지야. 명세서를 쓰라는 이야기는 하지 마.
+${KOREAN_ONLY}
+- 질문은 존댓말 해요체로 써.
+
+[응답 형식 — 아래 JSON만 출력, 한글만 사용]
+{
+  "readable": true,
+  "readNote": "그림이 잘 안 보이면 무엇이 안 보이는지 한 문장. 잘 보이면 빈 문자열",
+  "questions": [
+    { "focus": "글에는 있는데", "question": "질문 한 문장" },
+    { "focus": "그림에는 있는데", "question": "질문 한 문장" },
+    { "focus": "처음 보는 사람에게", "question": "질문 한 문장" }
+  ]
+}
+그림이 흐려서 견주어 보기 어려우면 readable을 false로 두고, readNote에 이유를 적고, questions는 빈 배열로 둬.`
+}
+
+function buildDrawingReviewPrompt({ ideaName, myIdea, drawingDesc, answerText }) {
+  return `너는 대한민국 중학생의 발명 학습을 돕는 발명 보조교사야.
+학생이 자기 발명품을 그리고 한 번 고쳤어. 이제 이 도면으로 다른 사람에게 아이디어를 전하고
+실제로 만들어 볼 수 있을지, 세 가지를 차례로 살펴보고 어디를 어떻게 손보면 좋을지 알려 줘.
+
+[학생의 발명 이름]
+${ideaName || '(정보 없음)'}
+
+[학생이 4차시에 자세히 쓴 발명 내용]
+${myIdea || '(정보 없음)'}
+
+[학생이 자기 그림에 대해 쓴 설명]
+${drawingDesc || '(작성하지 않음)'}
+
+[학생이 앞서 스스로 살펴본 내용]
+${answerText}
+
+함께 보낸 이미지가 학생이 그린 도면이야.
+
+[살펴볼 세 가지]
+1. 자리 배치 — 부품들이 놓인 자리가 서로 이치에 맞는가
+   (예: 손으로 잡는 곳과 뜨거워지는 곳이 붙어 있지는 않은지)
+2. 만들 수 있는 구조인가 — 실제로는 그렇게 될 수 없는 모양은 없는가
+   (예: 지지하는 것 없이 공중에 떠 있거나, 서로 통과해 지나가는 부분)
+3. 빠진 부품 — 이 발명이 설명대로 움직이려면 있어야 하는데 그림에 없는 것은 무엇인가
+
+[안내 규칙 — 매우 중요]
+- 세 가지마다 "괜찮아요 / 다시 볼까요" 중 하나로 표시하고, 왜 그렇게 봤는지 한 문장으로 설명해.
+- "다시 볼까요"일 때는 **어디를** 살펴보면 좋을지와 **무엇을 정해야 하는지**만 알려 줘.
+  어떻게 그리라고 대신 정해 주거나, 완성된 모양을 제시하지 마. 고쳐 그리는 건 학생이 할 일이야.
+  · 좋은 예: "손잡이와 뜨거워지는 부분이 붙어 있어요. 둘 사이를 어떻게 떼어 놓을지 생각해 볼까요?"
+  · 나쁜 예: "손잡이를 오른쪽으로 3센티미터 옮기고 나무로 감싸세요."
+- 예로 들 수 있는 것: 부품 이름과 번호, 크기 비율, 움직이는 방향, 재료, 잘라 본 모습이나 확대한 모습,
+  부분과 전체의 관계. 이 중 이 도면에 필요한 것만 골라서 말해.
+- 비난하지 말고 격려하는 말투로 써. 잘된 곳이 있으면 먼저 짚어 줘.
+- 학생이 쓴 설명이 짧고 단순하면 안내도 짧고 쉽게, 자세하면 그만큼 자세하게 맞춰서 써.
+- 점수, 등급, 순위는 말하지 마.
+${IMAGE_QUALITY}
+${SCOPE_GUARD}
+- 오늘 할 일은 "발명품 그리고 표현하기"까지야. 명세서를 쓰라는 이야기는 하지 마.
+${KOREAN_ONLY}
+- 모든 문장은 존댓말 해요체로 써.
+
+[응답 형식 — 아래 JSON만 출력, 한글만 사용]
+{
+  "readable": true,
+  "readNote": "그림이 잘 안 보이면 이유 한 문장. 잘 보이면 빈 문자열",
+  "goodPoint": "이 도면에서 잘된 곳 한 문장",
+  "checks": [
+    { "criterion": "자리 배치", "level": "괜찮아요", "comment": "한 문장 설명" },
+    { "criterion": "만들 수 있는 구조", "level": "다시 볼까요", "comment": "한 문장 설명" },
+    { "criterion": "빠진 부품", "level": "다시 볼까요", "comment": "한 문장 설명" }
+  ],
+  "whereToLook": ["어디를 살펴보고 무엇을 정하면 좋을지 한 문장", "..."],
+  "nextStep": "다음에 할 일 한 문장"
+}
+그림이 흐려서 살펴보기 어려우면 readable을 false로 두고 readNote에 이유를 적어.`
+}
+
+function isCrossCheckAnswered() {
+  return (
+    crossCheckQuestions.length > 0 &&
+    crossCheckQuestions.every((q) => String(q.answer || '').trim())
+  )
+}
+
+function handleCrossCheckAnswerInput(event) {
+  const index = Number.parseInt(event.target.dataset.index, 10)
+  if (!Number.isInteger(index) || !crossCheckQuestions[index]) return
+  crossCheckQuestions[index].answer = event.target.value
+  refreshReviewStep()
+  persistDrawingCheck()
+}
+
+function renderCrossCheckQuestions() {
+  if (!crossCheckListEl) return
+  crossCheckListEl.innerHTML = crossCheckQuestions
+    .map(
+      (q, i) => `
+        <div class="drawing-check-item">
+          <span class="drawing-check-index">${i + 1}</span>
+          <div class="drawing-check-body">
+            ${q.focus ? `<span class="drawing-check-focus">${escapeHtmlCoach(q.focus)}</span>` : ''}
+            <p class="drawing-check-question">${escapeHtmlCoach(q.question)}</p>
+            <label class="sr-only" for="drawing-check-answer-${i}">${escapeHtmlCoach(q.question)}에 대한 내 생각</label>
+            <textarea
+              id="drawing-check-answer-${i}"
+              class="drawing-check-answer"
+              data-index="${i}"
+              rows="3"
+              placeholder="그림에서 찾아본 내용을 적어 보세요."
+            >${escapeHtmlCoach(q.answer || '')}</textarea>
+          </div>
+        </div>
+      `
+    )
+    .join('')
+
+  for (const el of crossCheckListEl.querySelectorAll('.drawing-check-answer')) {
+    el.addEventListener('input', handleCrossCheckAnswerInput)
+  }
+
+  if (crossCheckBtn) {
+    crossCheckBtn.textContent = crossCheckQuestions.length > 0 ? '질문 다시 받기' : '점검 질문 받기'
+  }
+  refreshReviewStep()
+}
+
+function refreshReviewStep() {
+  if (reviewStepEl) reviewStepEl.hidden = crossCheckQuestions.length === 0
+  if (reviewBtn) reviewBtn.disabled = reviewBusy || !isCrossCheckAnswered()
+  if (crossCheckQuestions.length === 0 || reviewBusy || reviewResult) return
+  setCheckStatus(
+    reviewStatusEl,
+    isCrossCheckAnswered()
+      ? '답한 내용을 살려 도면을 고친 뒤에 [고친 도면 검토받기]를 눌러 주세요.'
+      : '세 질문에 모두 답하면 검토를 받을 수 있어요.',
+    isCrossCheckAnswered() ? 'info' : 'warn'
+  )
+}
+
+function renderReviewResult() {
+  if (!reviewResultEl) return
+  if (!reviewResult) {
+    reviewResultEl.innerHTML = ''
+    return
+  }
+
+  const { goodPoint, checks, whereToLook, nextStep } = reviewResult
+  const checksHtml = checks
+    .map((c) => {
+      const again = c.level === '다시 볼까요'
+      return `
+        <li class="drawing-review-check${again ? ' is-again' : ''}">
+          <div class="drawing-review-check-head">
+            <span class="drawing-review-criterion">${escapeHtmlCoach(c.criterion)}</span>
+            <span class="drawing-review-level">${escapeHtmlCoach(c.level)}</span>
+          </div>
+          <p class="drawing-review-comment">${escapeHtmlCoach(c.comment)}</p>
+        </li>
+      `
+    })
+    .join('')
+
+  reviewResultEl.innerHTML = `
+    ${goodPoint ? `<p class="drawing-review-good">잘된 곳: ${escapeHtmlCoach(goodPoint)}</p>` : ''}
+    ${checksHtml ? `<ul class="drawing-review-checks">${checksHtml}</ul>` : ''}
+    ${
+      whereToLook.length
+        ? `<div class="drawing-review-where">
+            <h4>어디를 살펴볼까요</h4>
+            <ul>${whereToLook.map((w) => `<li>${escapeHtmlCoach(w)}</li>`).join('')}</ul>
+          </div>`
+        : ''
+    }
+    ${nextStep ? `<p class="drawing-review-next">다음 할 일: ${escapeHtmlCoach(nextStep)}</p>` : ''}
+  `
+}
+
+async function generateCrossCheckQuestions() {
+  if (crossCheckBusy) return
+
+  if (isCanvasEffectivelyBlank()) {
+    setCheckStatus(crossCheckStatusEl, '먼저 캔버스에 발명품을 그려 주세요.', 'warn')
+    return
+  }
+  const drawingDesc = readDrawingDesc()
+  if (!drawingDesc) {
+    setCheckStatus(
+      crossCheckStatusEl,
+      '먼저 위에 내 그림 설명을 써 주세요. 그 설명과 그림을 견주어 질문을 만들어요.',
+      'warn'
+    )
+    drawingDescInput?.focus()
+    return
+  }
+  if (
+    crossCheckQuestions.some((q) => String(q.answer || '').trim()) &&
+    !confirm('질문을 새로 받으면 지금 적은 답변이 지워져요. 계속할까요?')
+  ) {
+    return
+  }
+
+  crossCheckBusy = true
+  if (crossCheckBtn) crossCheckBtn.disabled = true
+  setCheckStatus(crossCheckStatusEl, '그림과 설명을 견주어 보는 중입니다…', 'info')
+
+  try {
+    const { ideaName, myIdea } = readIdeaContext()
+    const parsed = await requestDrawingVisionJson(
+      buildCrossCheckPrompt({ ideaName, myIdea, drawingDesc })
+    )
+
+    if (parsed.readable === false) {
+      setCheckStatus(
+        crossCheckStatusEl,
+        String(parsed.readNote || '').trim() ||
+          '그림이 잘 보이지 않아요. 선을 더 진하게 그린 뒤 다시 눌러 주세요.',
+        'warn'
+      )
+      return
+    }
+
+    const questions = (Array.isArray(parsed.questions) ? parsed.questions : [])
+      .filter((q) => q && typeof q.question === 'string' && q.question.trim())
+      .slice(0, 3)
+      .map((q) => ({
+        focus: String(q.focus || '').trim(),
+        question: q.question.trim(),
+        answer: '',
+      }))
+
+    if (questions.length === 0) {
+      throw new Error('질문을 받지 못했어요. 버튼을 다시 눌러 주세요.')
+    }
+
+    crossCheckQuestions = questions
+    crossCheckFingerprint = drawingFingerprint(buildFlattenedImageDataUrl())
+    reviewResult = null
+    renderReviewResult()
+    renderCrossCheckQuestions()
+    setCheckStatus(
+      crossCheckStatusEl,
+      '질문이 도착했어요. 그림을 보면서 천천히 답해 보세요.',
+      'success'
+    )
+    persistDrawingCheck()
+  } catch (error) {
+    console.error('도면 대조 점검 질문 생성 오류:', error)
+    setCheckStatus(
+      crossCheckStatusEl,
+      error?.message === 'NO_API_KEY'
+        ? '.env에 VITE_OPENAI_API_KEY를 설정해 주세요.'
+        : error?.message || '질문을 만들지 못했어요. 다시 시도해 주세요.',
+      'error'
+    )
+  } finally {
+    crossCheckBusy = false
+    if (crossCheckBtn) crossCheckBtn.disabled = false
+  }
+}
+
+async function requestRevisedDrawingReview() {
+  if (reviewBusy) return
+
+  if (!isCrossCheckAnswered()) {
+    setCheckStatus(reviewStatusEl, '세 질문에 모두 답한 뒤에 검토를 받을 수 있어요.', 'warn')
+    return
+  }
+  if (isCanvasEffectivelyBlank()) {
+    setCheckStatus(reviewStatusEl, '캔버스가 비어 있어요. 도면을 먼저 그려 주세요.', 'warn')
+    return
+  }
+  if (
+    crossCheckFingerprint &&
+    drawingFingerprint(buildFlattenedImageDataUrl()) === crossCheckFingerprint
+  ) {
+    setCheckStatus(
+      reviewStatusEl,
+      '도면이 아직 그대로예요. 답한 내용을 살려 한 번 고친 뒤에 눌러 주세요.',
+      'warn'
+    )
+    return
+  }
+
+  reviewBusy = true
+  if (reviewBtn) reviewBtn.disabled = true
+  setCheckStatus(reviewStatusEl, '고친 도면을 살펴보는 중입니다…', 'info')
+
+  try {
+    const { ideaName, myIdea } = readIdeaContext()
+    const answerText = crossCheckQuestions
+      .map((q, i) => `${i + 1}. ${q.question}\n→ ${String(q.answer || '').trim()}`)
+      .join('\n')
+
+    const parsed = await requestDrawingVisionJson(
+      buildDrawingReviewPrompt({
+        ideaName,
+        myIdea,
+        drawingDesc: readDrawingDesc(),
+        answerText,
+      })
+    )
+
+    if (parsed.readable === false) {
+      setCheckStatus(
+        reviewStatusEl,
+        String(parsed.readNote || '').trim() ||
+          '그림이 잘 보이지 않아요. 선을 더 진하게 그린 뒤 다시 눌러 주세요.',
+        'warn'
+      )
+      return
+    }
+
+    reviewResult = {
+      goodPoint: String(parsed.goodPoint || '').trim(),
+      checks: (Array.isArray(parsed.checks) ? parsed.checks : [])
+        .filter((c) => c && typeof c.criterion === 'string' && c.criterion.trim())
+        .slice(0, 3)
+        .map((c) => ({
+          criterion: c.criterion.trim(),
+          level: String(c.level || '').trim() === '다시 볼까요' ? '다시 볼까요' : '괜찮아요',
+          comment: String(c.comment || '').trim(),
+        })),
+      whereToLook: (Array.isArray(parsed.whereToLook) ? parsed.whereToLook : [])
+        .map((w) => String(w).trim())
+        .filter(Boolean),
+      nextStep: String(parsed.nextStep || '').trim(),
+    }
+
+    renderReviewResult()
+    setCheckStatus(reviewStatusEl, '검토가 도착했어요. 아래 내용을 보고 도면을 다듬어 보세요.', 'success')
+    persistDrawingCheck()
+  } catch (error) {
+    console.error('고친 도면 검토 오류:', error)
+    setCheckStatus(
+      reviewStatusEl,
+      error?.message === 'NO_API_KEY'
+        ? '.env에 VITE_OPENAI_API_KEY를 설정해 주세요.'
+        : error?.message || '검토를 받지 못했어요. 다시 시도해 주세요.',
+      'error'
+    )
+  } finally {
+    reviewBusy = false
+    if (reviewBtn) reviewBtn.disabled = !isCrossCheckAnswered()
+  }
+}
+
+function buildDrawingCheckPayload() {
+  return {
+    description: readDrawingDesc(),
+    selfCheck: crossCheckQuestions.map((q) => ({
+      focus: q.focus,
+      question: q.question,
+      answer: String(q.answer || '').trim(),
+    })),
+    review: reviewResult,
+  }
+}
+
+function persistDrawingCheck() {
+  try {
+    localStorage.setItem(DRAWING_CHECK_KEY, JSON.stringify(buildDrawingCheckPayload()))
+  } catch (_) {}
+}
+
+function restoreDrawingCheck() {
+  let saved = null
+  try {
+    saved = JSON.parse(localStorage.getItem(DRAWING_CHECK_KEY) || 'null')
+  } catch (_) {
+    saved = null
+  }
+  if (!saved || typeof saved !== 'object') {
+    renderCrossCheckQuestions()
+    return
+  }
+
+  if (drawingDescInput && typeof saved.description === 'string') {
+    drawingDescInput.value = saved.description
+  }
+  crossCheckQuestions = (Array.isArray(saved.selfCheck) ? saved.selfCheck : [])
+    .filter((q) => q && typeof q.question === 'string' && q.question.trim())
+    .map((q) => ({
+      focus: String(q.focus || '').trim(),
+      question: q.question.trim(),
+      answer: typeof q.answer === 'string' ? q.answer : '',
+    }))
+  reviewResult =
+    saved.review && typeof saved.review === 'object'
+      ? {
+          goodPoint: String(saved.review.goodPoint || ''),
+          checks: Array.isArray(saved.review.checks) ? saved.review.checks : [],
+          whereToLook: Array.isArray(saved.review.whereToLook) ? saved.review.whereToLook : [],
+          nextStep: String(saved.review.nextStep || ''),
+        }
+      : null
+
+  renderCrossCheckQuestions()
+  renderReviewResult()
+}
+
+if (drawingDescInput) {
+  drawingDescInput.addEventListener('input', persistDrawingCheck)
+}
+
+if (crossCheckBtn) {
+  crossCheckBtn.addEventListener('click', () => {
+    void generateCrossCheckQuestions()
+  })
+}
+
+if (reviewBtn) {
+  reviewBtn.addEventListener('click', () => {
+    void requestRevisedDrawingReview()
+  })
+}
+
+restoreDrawingCheck()
 
 /**
  * 캔버스 그림 + 텍스트 오버레이를 합쳐 PNG 데이터 URL을 만든다.
@@ -949,9 +1576,14 @@ saveDrawingBtn.addEventListener('click', async () => {
     selectTextItem(null)
     const imageData = buildFlattenedImageDataUrl()
 
+    const check = buildDrawingCheckPayload()
+
     // Firebase에 활동 저장
-    await saveStudentActivity('drawing', { 
+    await saveStudentActivity('drawing', {
       image: imageData,
+      description: check.description,
+      selfCheck: check.selfCheck,
+      review: check.review,
       timestamp: new Date().toISOString()
     })
     
@@ -973,6 +1605,7 @@ downloadDrawingBtn.addEventListener('click', () => {
 
 listenForWorkbenchFlushRequest(() => {
   if (!canvas || !ctx) return
+  persistDrawingCheck()
   try {
     localStorage.setItem('studentDrawingRestore', buildFlattenedImageDataUrl())
   } catch (_) {}

@@ -89,6 +89,319 @@ h1::before {
 .drawing-main {
   flex: 1;
   min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.drawing-desc,
+.drawing-check {
+  padding: 18px 20px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.drawing-desc h2,
+.drawing-check h2 {
+  margin: 0;
+  font-size: 1.05rem;
+  color: #0f172a;
+}
+
+.drawing-desc-hint,
+.drawing-check-hint {
+  margin: 0;
+  font-size: 0.85rem;
+  color: #475569;
+  line-height: 1.5;
+}
+
+#drawing-desc-input {
+  width: 100%;
+  padding: 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  font-size: 0.95rem;
+  font-family: inherit;
+  line-height: 1.55;
+  resize: vertical;
+}
+
+#drawing-desc-input:focus {
+  outline: none;
+  border-color: #0ea5e9;
+  box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.18);
+}
+
+.drawing-check-step {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+}
+
+.drawing-check-step[hidden] {
+  display: none;
+}
+
+.drawing-check-step-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.drawing-check-step-head h3 {
+  margin: 0;
+  font-size: 0.98rem;
+  color: #0f172a;
+}
+
+.drawing-check-step-num {
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: #2563eb;
+  color: #ffffff;
+  font-size: 0.8rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.drawing-check-btn {
+  align-self: flex-start;
+  padding: 10px 20px;
+  border: 1.5px solid transparent;
+  border-radius: 999px;
+  background: #FFE020;
+  color: #1A1A1A;
+  font-size: 0.9rem;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(255, 224, 32, 0.35);
+  transition: background 150ms ease, transform 150ms ease, box-shadow 150ms ease,
+    opacity 150ms ease;
+}
+
+.drawing-check-btn:hover:not(:disabled) {
+  background: #FFD60A;
+  transform: translateY(-1px);
+}
+
+.drawing-check-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+.drawing-check-status {
+  margin: 0;
+  font-size: 0.85rem;
+  line-height: 1.5;
+  color: #475569;
+}
+
+.drawing-check-status[data-mode='warn'] {
+  color: #b45309;
+}
+
+.drawing-check-status[data-mode='error'] {
+  color: #b91c1c;
+}
+
+.drawing-check-status[data-mode='success'] {
+  color: #047857;
+}
+
+.drawing-check-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.drawing-check-item {
+  display: flex;
+  gap: 10px;
+  padding: 12px;
+  background: #f0f9ff;
+  border: 1px solid #bae6fd;
+  border-radius: 10px;
+}
+
+.drawing-check-index {
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: #0ea5e9;
+  color: #ffffff;
+  font-size: 0.78rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.drawing-check-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.drawing-check-focus {
+  align-self: flex-start;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #e0f2fe;
+  color: #0369a1;
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+
+.drawing-check-question {
+  margin: 0;
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: #0f172a;
+  line-height: 1.5;
+}
+
+.drawing-check-answer {
+  width: 100%;
+  padding: 10px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  font-family: inherit;
+  line-height: 1.5;
+  resize: vertical;
+}
+
+.drawing-check-answer:focus {
+  outline: none;
+  border-color: #0ea5e9;
+  box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.18);
+}
+
+.drawing-review-result:empty {
+  display: none;
+}
+
+.drawing-review-result {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.drawing-review-good {
+  margin: 0;
+  padding: 10px 12px;
+  background: #ecfdf5;
+  border: 1px solid #a7f3d0;
+  border-radius: 10px;
+  font-size: 0.9rem;
+  color: #065f46;
+  line-height: 1.55;
+}
+
+.drawing-review-checks {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.drawing-review-check {
+  padding: 12px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-left: 4px solid #10b981;
+  border-radius: 10px;
+}
+
+.drawing-review-check.is-again {
+  border-left-color: #f59e0b;
+  background: #fffbeb;
+}
+
+.drawing-review-check-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.drawing-review-criterion {
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.drawing-review-level {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #d1fae5;
+  color: #065f46;
+  font-size: 0.74rem;
+  font-weight: 600;
+}
+
+.drawing-review-check.is-again .drawing-review-level {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.drawing-review-comment {
+  margin: 6px 0 0;
+  font-size: 0.88rem;
+  color: #334155;
+  line-height: 1.55;
+}
+
+.drawing-review-where {
+  padding: 12px;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 10px;
+}
+
+.drawing-review-where h4 {
+  margin: 0 0 6px;
+  font-size: 0.9rem;
+  color: #1d4ed8;
+}
+
+.drawing-review-where ul {
+  margin: 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.88rem;
+  color: #334155;
+  line-height: 1.55;
+}
+
+.drawing-review-next {
+  margin: 0;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: #0f172a;
 }
 
 .drawing-coach {

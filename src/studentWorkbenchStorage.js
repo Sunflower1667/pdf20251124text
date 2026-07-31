@@ -9,6 +9,7 @@ const WORKBENCH_DRAFT_KEYS = [
   'extractedText',
   'studentIdeaSessionRestore',
   'studentDrawingRestore',
+  'pro10-drawing-check',
   'myInventionSpecDraft',
   'specExploreReflection',
 ]

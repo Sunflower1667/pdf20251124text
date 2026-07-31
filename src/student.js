@@ -827,16 +827,40 @@ function showActivityDetail(activity) {
       effect: '발명의 효과',
       figures: '도면·그림에 대한 간단한 설명',
     }
-    const blocks = Object.entries(d)
-      .filter(([, v]) => typeof v === 'string' && v.trim())
-      .map(([k, v]) => {
-        const label = fieldLabels[k] || k
-        return `<p><strong>${sanitize(label)}:</strong></p><div style="white-space: pre-wrap; padding: 10px; background: #f8fafc; border-radius: 8px;">${sanitize(v)}</div>`
-      })
+    const blocks = Object.entries(fieldLabels)
+      .filter(([key]) => typeof d[key] === 'string' && d[key].trim())
+      .map(
+        ([key, label]) =>
+          `<p><strong>${sanitize(label)}:</strong></p><div style="white-space: pre-wrap; padding: 10px; background: #f8fafc; border-radius: 8px;">${sanitize(d[key])}</div>`
+      )
+    const counterAnswers = Array.isArray(d.counterAnswers)
+      ? d.counterAnswers.filter((q) => q?.question && String(q?.answer || '').trim())
+      : []
+    const specDrawing =
+      typeof d.drawingImage === 'string' && d.drawingImage.startsWith('data:image/')
+        ? d.drawingImage
+        : ''
     detailHtml = `
       <h3>나만의 발명품 명세서 완성하기</h3>
       <p><strong>작성일:</strong> ${date}</p>
       ${blocks.length ? blocks.join('') : '<p>저장된 항목이 없습니다.</p>'}
+      ${specDrawing ? `
+        <p style="margin-top: 20px;"><strong>발명품 표현하기 그림:</strong></p>
+        <div style="padding: 10px; background: #f8fafc; border-radius: 8px; text-align: center;">
+          <img src="${specDrawing}" alt="발명품 표현하기에서 저장한 그림" style="max-width: 100%; height: auto; border-radius: 6px;" />
+        </div>
+      ` : ''}
+      ${counterAnswers.length ? `
+        <p style="margin-top: 20px;"><strong>처음 보는 사람의 질문과 내 답:</strong></p>
+        <div style="padding: 12px; background: #eff6ff; border-radius: 8px;">
+          ${counterAnswers
+            .map(
+              (q) =>
+                `<p style="margin: 0 0 10px;"><strong>${sanitize(q.question)}</strong><br><span style="white-space: pre-wrap;">${sanitize(q.answer)}</span></p>`
+            )
+            .join('')}
+        </div>
+      ` : ''}
     `
   }
   
