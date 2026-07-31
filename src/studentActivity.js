@@ -1145,6 +1145,8 @@ function generateReflectionSection(reflectionData) {
   const {
     reflection,
     feedback,
+    reflectionQuestion,
+    reflectionAnswer,
     emotionIcon,
     emotionLabel,
     growthIcon,
@@ -1187,6 +1189,16 @@ function generateReflectionSection(reflectionData) {
       <div>
         <h3 style="font-size: 16px; font-weight: bold; margin-bottom: 8px; color: #475569;">교사 피드백</h3>
         <div style="font-size: 14px; line-height: 1.8; margin-left: 10px; padding: 15px; background: #ecfdf5; border-radius: 8px; white-space: pre-wrap;">${sanitize(feedback)}</div>
+      </div>
+      ` : ''}
+
+      ${reflectionQuestion ? `
+      <div style="margin-top: 20px;">
+        <h3 style="font-size: 16px; font-weight: bold; margin-bottom: 8px; color: #475569;">성찰 질문과 나의 생각</h3>
+        <div style="margin-left: 10px; padding: 15px; background: #eff6ff; border-radius: 8px; border-left: 4px solid #2563eb;">
+          <div style="font-size: 14px; font-weight: 700; color: #1d4ed8; margin-bottom: 8px;">💭 ${sanitize(reflectionQuestion)}</div>
+          <div style="font-size: 14px; line-height: 1.8; color: ${reflectionAnswer ? '#0f172a' : '#94a3b8'}; white-space: pre-wrap;">${reflectionAnswer ? sanitize(reflectionAnswer) : '아직 답을 적지 않았어요.'}</div>
+        </div>
       </div>
       ` : ''}
     </div>

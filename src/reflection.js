@@ -110,6 +110,8 @@ const emotionGrid = document.querySelector('#emotion-grid')
 const growthTrack = document.querySelector('#growth-track')
 
 let feedbackText = ''
+let reflectionQuestion = ''
+let reflectionAnswer = ''
 let selectedEmotion = null
 let selectedGrowth = null
 
@@ -119,6 +121,73 @@ function findEmotion(id) {
 
 function findGrowth(id) {
   return GROWTH_OPTIONS.find((o) => o.id === id) || null
+}
+
+/** 소감·편지·성찰 질문·학생 답변을 Firestore 저장용 한 덩어리로 모읍니다. */
+function buildReflectionPayload() {
+  const emotion = findEmotion(selectedEmotion)
+  const growth = findGrowth(selectedGrowth)
+  return {
+    reflection: reflectionText.value.trim(),
+    feedback: feedbackText,
+    reflectionQuestion,
+    reflectionAnswer,
+    emotion: selectedEmotion,
+    emotionLabel: emotion?.label || '',
+    emotionIcon: emotion?.icon || '',
+    growth: selectedGrowth,
+    growthLabel: growth?.label || '',
+    growthIcon: growth?.icon || '',
+  }
+}
+
+/** 위쪽에 AI 편지, 아래쪽에 성찰 질문과 학생 답변 칸을 그립니다. */
+function renderAchievementComment({ letter, question }) {
+  const questionBlock = question
+    ? `<div class="reflect-block">
+         <p class="reflect-question">💭 ${sanitize(question)}</p>
+         <textarea id="reflect-answer" class="reflect-answer" maxlength="300"
+           placeholder="떠오르는 대로 한두 줄만 적어 봐도 좋아요">${sanitize(reflectionAnswer)}</textarea>
+         <div class="reflect-actions">
+           <button type="button" class="btn-secondary" id="reflect-save">이 생각 저장하기</button>
+         </div>
+         <p class="reflect-hint">안 써도 괜찮아요. 생각만 해 봐도 충분해요.</p>
+       </div>`
+    : ''
+
+  feedbackContent.innerHTML = `
+    <div class="comment-letter">${sanitize(letter).replace(/\n/g, '<br />')}</div>
+    ${questionBlock}
+  `
+
+  if (!question) return
+
+  const answerInput = feedbackContent.querySelector('#reflect-answer')
+  const saveAnswerBtn = feedbackContent.querySelector('#reflect-save')
+  const hint = feedbackContent.querySelector('.reflect-hint')
+
+  answerInput.addEventListener('input', () => {
+    reflectionAnswer = answerInput.value
+  })
+
+  saveAnswerBtn.addEventListener('click', async () => {
+    reflectionAnswer = answerInput.value.trim()
+    saveAnswerBtn.disabled = true
+    saveAnswerBtn.textContent = '저장 중...'
+    try {
+      const { saveStudentActivity } = await import('./activityStorage.js')
+      await saveStudentActivity('reflection', buildReflectionPayload())
+      hint.textContent = '생각을 저장했어요. 언제든 다시 고쳐 써도 괜찮아요.'
+      hint.dataset.mode = 'success'
+    } catch (error) {
+      console.error('성찰 답변 저장 오류:', error)
+      hint.textContent = '저장 중 문제가 생겼어요. 잠시 후 다시 눌러 주세요.'
+      hint.dataset.mode = 'error'
+    } finally {
+      saveAnswerBtn.disabled = false
+      saveAnswerBtn.textContent = '이 생각 저장하기'
+    }
+  })
 }
 
 function updateSubmitState() {
@@ -225,10 +294,14 @@ getFeedbackBtn.addEventListener('click', async () => {
     const { getRecentActivities } = await import('./activityStorage.js')
     const activities = await getRecentActivities()
 
-    feedbackText = await generateFeedback(apiKey, text, activities, { emotion, growth })
-    feedbackContent.innerHTML = `
-      <div class="feedback-text">${sanitize(feedbackText).replace(/\n/g, '<br>')}</div>
-    `
+    const { letter, question } = await generateFeedback(apiKey, text, activities, {
+      emotion,
+      growth,
+    })
+    feedbackText = letter
+    reflectionQuestion = question
+    reflectionAnswer = ''
+    renderAchievementComment({ letter, question })
     feedbackSection.style.display = 'block'
     
     // 활동 종료하기 버튼 표시 (모달에서 열렸는지 확인)
@@ -267,18 +340,7 @@ if (finishActivityBtn) {
     finishActivityBtn.textContent = '활동 종료 중...'
 
     try {
-      const emotion = findEmotion(selectedEmotion)
-      const growth = findGrowth(selectedGrowth)
-      const reflectionPayload = {
-        reflection: text,
-        feedback: feedbackText,
-        emotion: selectedEmotion,
-        emotionLabel: emotion?.label || '',
-        emotionIcon: emotion?.icon || '',
-        growth: selectedGrowth,
-        growthLabel: growth?.label || '',
-        growthIcon: growth?.icon || '',
-      }
+      const reflectionPayload = buildReflectionPayload()
 
       const { saveStudentActivity } = await import('./activityStorage.js')
       await saveStudentActivity('reflection', reflectionPayload)
@@ -324,19 +386,15 @@ saveWithFeedbackBtn.addEventListener('click', async () => {
   try {
     const emotion = findEmotion(selectedEmotion)
     const growth = findGrowth(selectedGrowth)
-    const reflectionPayload = {
-      reflection: text,
-      feedback: feedbackText,
-      emotion: selectedEmotion,
-      emotionLabel: emotion?.label || '',
-      emotionIcon: emotion?.icon || '',
-      growth: selectedGrowth,
-      growthLabel: growth?.label || '',
-      growthIcon: growth?.icon || '',
-    }
+    const reflectionPayload = buildReflectionPayload()
     const { saveStudentActivity } = await import('./activityStorage.js')
     await saveStudentActivity('reflection', reflectionPayload)
-    await generateReflectionPdf(text, feedbackText, { emotion, growth })
+    await generateReflectionPdf(text, feedbackText, {
+      emotion,
+      growth,
+      question: reflectionQuestion,
+      answer: reflectionAnswer,
+    })
     
     statusMessage.textContent = 'PDF 파일로 저장되었습니다. (소감·피드백은 Firebase에도 저장되었습니다.)'
     statusMessage.dataset.mode = 'success'
@@ -394,7 +452,14 @@ async function generateFeedback(apiKey, reflection, activities = {}, mood = {}) 
     ? `${mood.growth.icon} ${mood.growth.label} (${mood.growth.description})`
     : '선택하지 않음'
 
-  const prompt = `당신은 학생의 마음을 가장 먼저 살피는 따뜻한 선생님입니다. 학생이 오늘 활동을 마치며 자신의 감정과 성장 단계, 그리고 짧은 소감을 남겼습니다. 평가나 점수보다 "정서적 지원"을 최우선으로, 짧고 따뜻한 글 피드백을 써 주세요.
+  const isHeavyEmotion =
+    mood?.emotion?.id === 'confusion' || mood?.emotion?.id === 'worry'
+  const studentName = localStorage.getItem('userName') || '학생'
+
+  const prompt = `너는 중학생의 발명 아이디어 코치야. 오늘 활동을 마친 학생이 쓴 소감을 읽고, 학생이 오늘 자기가 무엇을 해냈는지 스스로 알아차릴 수 있도록 따뜻한 성취 코멘트를 써 줘.
+
+[학생 이름]
+${studentName}
 
 [학생이 오늘 수행한 활동 요약]
 ${activitySummary || '활동 정보 없음'}
@@ -408,13 +473,33 @@ ${growthLine}
 [학생의 소감]
 ${reflection}
 
+말투 예시 (이 톤과 문장 리듬을 참고해):
+"오늘 경험한 깨달음은 정말 자연스러운 감정입니다. 오늘 ${studentName}이(가) 명세서를 찾아보는 활동을 처음해보면서 규칙 적용의 중요성을 느꼈다는 건, 아주 의미 있는 경험이겠죠? 그렇게 새로운 것을 배우고 있다는 건 멋진 시작이란 사실을 꼭! 기억해 주세요!"
+
 작성 규칙:
-1. 가장 먼저, 학생이 고른 감정(${mood?.emotion?.label || ''})을 있는 그대로 받아주고 공감해 주세요. "그런 마음이 드는 건 자연스러워" 같은 정서적 수용을 먼저 해 주세요.
-2. 평가/지적/조언은 최소화하세요. 부족한 점을 지적하기보다, 학생이 오늘 보여준 작은 노력과 용기를 구체적으로 알아봐 주세요.
-3. 학생이 고른 성장 단계(${mood?.growth?.label || ''})를 인정하고, 그 단계에 어울리는 따뜻한 응원 한 문장을 넣어 주세요. (예: 씨앗이면 "시작한 것 자체가 대단해", 열매면 "정말 잘 자라났구나")
-4. 만약 감정이 '혼란'이나 '고민'처럼 힘든 감정이라면, 해결책을 서둘러 주기보다 "괜찮아, 그런 날도 있어"라고 안심시켜 주세요.
-5. 어려운 단어 없이, 중학생이 편하게 읽을 수 있게 친근한 말투로 써 주세요.
-6. 분량은 4~6문장 정도로 짧고 진심 어린 편지처럼 작성해 주세요. 마지막은 짧은 응원 한 줄로 마무리해 주세요.`
+1. 인사(안녕하세요, ~야 등)는 생략하고 바로 본문으로 시작해.
+2. 말투는 위 예시처럼 정중하고 따뜻한 ~입니다, ~겠죠?, ~해 주세요 체로 써. 반말이나 지나치게 캐주얼한 표현은 쓰지 마.
+3. 가장 먼저, 학생이 고른 감정(${mood?.emotion?.label || ''})을 있는 그대로 받아주고 공감해. "오늘 경험한 ~은/는 정말 자연스러운 감정입니다"처럼 정서적 수용으로 시작해.
+4. 그다음, 오늘 학생이 실제로 한 일을 한두 문장으로 짚어 줘.
+   - 소감에 나온 학생의 말이나 활동 내용을 바탕으로 "오늘 ${studentName}이(가) ~했다는 건, ~이겠죠?" 형태로 써.
+   - "잘했어요" 같은 칭찬만 하지 말고, 무엇을 해서 여기까지 왔는지를 학생 자신의 행동으로 알려 줘.
+   - 학생이 하지 않은 일을 지어내지 마. 소감에 적힌 내용 안에서만 찾아 써.
+5. 학생이 고른 성장 단계(${mood?.growth?.label || ''})를 인정하고, 그 단계에 어울리는 따뜻한 응원 한 문장을 넣어 줘.
+6. 평가·지적·조언은 최소화해. 점수나 순위는 말하지 마.
+7. ${isHeavyEmotion ? "감정이 '혼란'이나 '고민'이므로, 해결책을 서두르지 말고 \"그런 마음이 드는 것도 자연스러운 일입니다\"처럼 안심시켜 줘." : '학생이 오늘 보여준 작은 노력과 용기를 구체적으로 알아봐 줘.'}
+8. 어려운 단어 없이, 중학생이 편하게 읽을 수 있게 써 줘.
+9. 편지 분량은 6~8문장 정도로, 짧고 진심 어린 편지처럼 작성해 줘. 편지 안에는 질문을 넣지 말고, 마지막은 따뜻한 마무리 한 문장으로 끝내.
+10. 편지와 별도로, 학생에게 던질 성찰 질문 한 개를 만들어 줘.
+   - 오늘 학생이 한 생각이나 선택을 스스로 되돌아볼 수 있는 질문이어야 해.
+   - 한 문장, 30자 이내. 답이나 예시 답안은 절대 알려 주지 마.
+   - ${isHeavyEmotion ? "감정이 '혼란'이나 '고민'이므로, 부담을 주는 질문 대신 가볍게 떠올려 볼 수 있는 질문으로 만들어." : '학생이 오늘의 경험을 스스로 돌아볼 수 있는 질문으로 만들어.'}
+   - 다음 시간에 무엇을 할지는 알려 주지 마.
+
+출력 형식 (아래 형식을 그대로 지켜서, 다른 말은 붙이지 말고 출력해):
+[편지]
+(편지 본문)
+[질문]
+(성찰 질문 한 문장)`
 
   const response = await fetch(OPENAI_URL, {
     method: 'POST',
@@ -455,7 +540,36 @@ ${reflection}
     throw new Error('AI 응답을 읽을 수 없습니다.')
   }
 
-  return aiText.trim()
+  return splitLetterAndQuestion(aiText.trim())
+}
+
+/**
+ * AI가 `[편지] ... [질문] ...` 형식으로 보낸 응답을 편지와 성찰 질문으로 분리합니다.
+ * 형식이 지켜지지 않으면 전체를 편지로 두고 질문은 비웁니다(질문 블록이 자동으로 사라짐).
+ */
+function splitLetterAndQuestion(aiText) {
+  const match = aiText.match(/\[편지\]\s*([\s\S]*?)\s*\[질문\]\s*([\s\S]*)$/)
+  if (match) {
+    return { letter: match[1].trim(), question: cleanQuestion(match[2]) }
+  }
+
+  const questionOnly = aiText.match(/^([\s\S]*?)\s*\[질문\]\s*([\s\S]*)$/)
+  if (questionOnly) {
+    return {
+      letter: questionOnly[1].replace(/\[편지\]\s*/, '').trim(),
+      question: cleanQuestion(questionOnly[2]),
+    }
+  }
+
+  return { letter: aiText.replace(/\[편지\]\s*/, '').trim(), question: '' }
+}
+
+function cleanQuestion(value) {
+  return String(value || '')
+    .replace(/^["'“”‘’\s-]+/, '')
+    .replace(/["'“”‘’\s]+$/, '')
+    .split('\n')[0]
+    .trim()
 }
 
 async function generateReflectionPdf(reflection, feedback, mood = {}) {
@@ -495,6 +609,15 @@ async function generateReflectionPdf(reflection, feedback, mood = {}) {
       <div style="margin-top: 40px; padding-top: 30px; border-top: 2px solid #e2e8f0;">
         <h2 style="font-size: 18px; font-weight: bold; margin-bottom: 15px; color: #475569;">교사 피드백</h2>
         <div style="font-size: 14px; line-height: 1.8; padding: 20px; background: #ecfdf5; border-radius: 12px; white-space: pre-wrap;">${sanitize(feedback).replace(/\n/g, '<br>')}</div>
+      </div>
+      `
+        : ''}
+
+      ${mood?.question
+        ? `
+      <div style="margin-top: 24px; padding: 20px; background: #eff6ff; border-radius: 12px; border-left: 4px solid #2563eb;">
+        <div style="font-size: 15px; font-weight: 700; color: #1d4ed8; margin-bottom: 10px;">💭 ${sanitize(mood.question)}</div>
+        <div style="font-size: 14px; line-height: 1.8; color: ${mood?.answer ? '#0f172a' : '#94a3b8'}; white-space: pre-wrap;">${mood?.answer ? sanitize(mood.answer).replace(/\n/g, '<br>') : '아직 답을 적지 않았어요.'}</div>
       </div>
       `
         : ''}
