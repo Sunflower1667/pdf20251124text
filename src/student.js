@@ -981,7 +981,7 @@ if (saveAllBtn) {
     saveAllBtn.disabled = true
     const prevLabel = saveAllBtn.textContent
     saveAllBtn.textContent = '저장 중...'
-    setSaveAllStatus('writeBatch로 모든 활동 카드를 한 번에 저장 중...')
+    setSaveAllStatus('현재까지 활동한 내용 저장중...')
     try {
       const { saveAllActivitiesWithBatch } = await import('./studentActivity.js')
       const result = await saveAllActivitiesWithBatch(activityFrame?.contentWindow)

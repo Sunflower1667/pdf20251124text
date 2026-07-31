@@ -378,7 +378,66 @@ body {
   line-height: 1.5;
 }
 
+.ai-questions-section {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px dashed #c7d2fe;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
 
+.ai-questions-title {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.ai-question-item {
+  background: #ffffff;
+  border: 2px solid #a7f3d0;
+  border-radius: 12px;
+  padding: 12px 14px;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  box-shadow: 0 2px 6px rgba(16, 185, 129, 0.08);
+}
+
+.ai-question-index {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: #059669;
+  color: #ffffff;
+  font-weight: 700;
+  font-size: 0.85rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.ai-question-body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.ai-question-focus {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #047857;
+}
+
+.ai-question-text {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #0f172a;
+  line-height: 1.5;
+}
 
 .ai-empty {
   color: #64748b;
@@ -488,7 +547,219 @@ body {
   word-break: break-all;
 }
 
+/* 고른 발명 정리 */
+.patent-select-card {
+  background: #ffffff;
+  border-radius: 16px;
+  padding: 22px 24px;
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.08);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.patent-select-card h2 {
+  margin: 0;
+  font-size: 1.1rem;
+  color: #0f172a;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.patent-select-card h2::before {
+  content: '📋';
+}
+
+.patent-select-desc {
+  margin: 0;
+  color: #475569;
+  font-size: 0.94rem;
+  line-height: 1.55;
+}
+
+.patent-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.patent-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.patent-field-full {
+  grid-column: 1 / -1;
+}
+
+.patent-label {
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.patent-required {
+  font-style: normal;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #dc2626;
+  margin-left: 4px;
+}
+
+.patent-input,
+.patent-textarea {
+  width: 100%;
+  padding: 10px 14px;
+  border: 2px solid #e2e8f0;
+  border-radius: 12px;
+  font-size: 0.95rem;
+  font-family: inherit;
+  color: #0f172a;
+  background: #ffffff;
+  transition: border-color 150ms ease, box-shadow 150ms ease;
+  box-sizing: border-box;
+}
+
+.patent-textarea {
+  min-height: 96px;
+  resize: vertical;
+  line-height: 1.55;
+}
+
+.patent-input:focus,
+.patent-textarea:focus {
+  outline: none;
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+}
+
+.patent-select-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 2px;
+}
+
+.patent-check-status {
+  font-size: 0.88rem;
+  color: #475569;
+  min-height: 1.2em;
+}
+
+.patent-check-status.is-error {
+  color: #b91c1c;
+}
+
+.patent-check-status.is-success {
+  color: #047857;
+}
+
+.patent-feedback {
+  min-height: 0;
+}
+
+.patent-feedback-inner {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  background: linear-gradient(135deg, #eff6ff 0%, #ecfdf5 100%);
+  border: 1px solid #c7d2fe;
+  border-radius: 14px;
+  padding: 16px;
+}
+
+.patent-feedback-title {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.patent-check-item {
+  background: #ffffff;
+  border: 2px solid #dbeafe;
+  border-radius: 12px;
+  padding: 12px 14px;
+}
+
+.patent-check-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+
+.patent-check-criterion {
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: #1e40af;
+}
+
+.patent-check-level {
+  font-size: 0.78rem;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.patent-check-level.is-good {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.patent-check-level.is-more {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.patent-check-level.is-retry {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.patent-check-comment {
+  margin: 0;
+  font-size: 0.92rem;
+  color: #334155;
+  line-height: 1.55;
+}
+
+.patent-next-step {
+  background: #ffffff;
+  border: 2px solid #a7f3d0;
+  border-radius: 12px;
+  padding: 12px 14px;
+}
+
+.patent-next-step strong {
+  display: block;
+  font-size: 0.82rem;
+  color: #047857;
+  margin-bottom: 4px;
+}
+
+.patent-next-step p {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #0f172a;
+  line-height: 1.5;
+}
+
 @media (max-width: 600px) {
+  .patent-form-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .patent-select-card {
+    padding: 18px 18px 20px;
+  }
+
   .seed-card {
     padding: 18px 18px 20px;
   }
