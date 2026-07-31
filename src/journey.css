@@ -1,0 +1,169 @@
+/* 7차시 「나의 발명 여정 돌아보기」 — 감정·성장·소감 영역은 reflection.css 를 함께 씁니다. */
+
+.journey-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.journey-progress {
+  margin: 0;
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-size: 0.92rem;
+  font-weight: 600;
+}
+
+.journey-timeline {
+  list-style: none;
+  margin: 4px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.journey-step {
+  position: relative;
+  display: grid;
+  grid-template-columns: 56px minmax(0, 1fr);
+  gap: 14px;
+  padding: 18px 20px;
+  border: 1px solid #e2e8f0;
+  border-radius: 18px;
+  background: #ffffff;
+}
+
+.journey-step.is-recorded {
+  border-color: #bbf7d0;
+  background: linear-gradient(180deg, #f8fffb, #ffffff 60%);
+}
+
+.journey-step.is-empty {
+  background: #f8fafc;
+}
+
+.journey-step__marker {
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+}
+
+.journey-step__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: #f1f5f9;
+  font-size: 1.5rem;
+  line-height: 1;
+}
+
+.journey-step.is-recorded .journey-step__icon {
+  background: #dcfce7;
+}
+
+.journey-step__body {
+  min-width: 0;
+}
+
+.journey-step__badge {
+  margin: 0;
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: #64748b;
+}
+
+.journey-step__title {
+  margin: 2px 0 12px;
+  font-size: 1.1rem;
+  color: #0f172a;
+}
+
+.journey-step__items {
+  margin: 0;
+  display: grid;
+  gap: 10px;
+}
+
+.journey-step__item {
+  display: grid;
+  grid-template-columns: 150px minmax(0, 1fr);
+  gap: 12px;
+  align-items: baseline;
+}
+
+.journey-step__item dt {
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: #475569;
+}
+
+.journey-step__item dd {
+  margin: 0;
+  font-size: 0.95rem;
+  line-height: 1.7;
+  color: #0f172a;
+  word-break: break-word;
+}
+
+.journey-step__empty {
+  margin: 0;
+  font-size: 0.92rem;
+  line-height: 1.6;
+  color: #64748b;
+}
+
+.journey-step__figure {
+  margin: 14px 0 0;
+  padding: 12px;
+  border-radius: 14px;
+  background: #f8fafc;
+  text-align: center;
+}
+
+.journey-step__figure img {
+  max-width: min(100%, 420px);
+  height: auto;
+  border-radius: 10px;
+  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.12);
+}
+
+.journey-step__figure figcaption {
+  margin-top: 8px;
+  font-size: 0.82rem;
+  color: #64748b;
+}
+
+.journey-finish-hint {
+  margin: 16px 0 0;
+  padding: 12px 16px;
+  border-radius: 12px;
+  background: #fef3c7;
+  color: #92400e;
+  font-size: 0.92rem;
+  font-weight: 600;
+}
+
+@media (max-width: 720px) {
+  .journey-step {
+    grid-template-columns: 44px minmax(0, 1fr);
+    padding: 16px;
+  }
+
+  .journey-step__icon {
+    width: 40px;
+    height: 40px;
+    font-size: 1.25rem;
+  }
+
+  .journey-step__item {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 2px;
+  }
+}

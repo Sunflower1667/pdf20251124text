@@ -314,6 +314,8 @@ export async function loadPastActivities() {
 
 const IDEA_RESTORE_KEY = 'studentIdeaSessionRestore'
 const DRAWING_RESTORE_KEY = 'studentDrawingRestore'
+/** 7차시 「나의 발명 여정 돌아보기」 드래프트 */
+const JOURNEY_DRAFT_KEY = 'pro10-journey-draft'
 
 /**
  * 명세서 분석 스냅샷(요약 + Storage 경로 등)을 localStorage에 넣고, 저장된 PDF가 있으면 다시 추출한 본문을 extractedText에 넣습니다.
@@ -398,6 +400,15 @@ export function hasPastActivityOpenableContent(activity) {
         if (v && typeof v === 'object') return Object.keys(v).length > 0
         return false
       })
+    case 'journey': {
+      const d = data
+      return (
+        !!(d.reflection && String(d.reflection).trim()) ||
+        !!(d.letter && String(d.letter).trim()) ||
+        !!(d.emotion && String(d.emotion).trim()) ||
+        !!(d.growth && String(d.growth).trim())
+      )
+    }
     default:
       return false
   }
@@ -487,6 +498,10 @@ export async function preparePastActivityForWorkspace(activity, pastActivitiesLi
       case 'invention_spec':
         localStorage.setItem('myInventionSpecDraft', JSON.stringify(data))
         result = { mode: 'iframe', src: 'invention-spec.html' }
+        break
+      case 'journey':
+        localStorage.setItem(JOURNEY_DRAFT_KEY, JSON.stringify(data))
+        result = { mode: 'iframe', src: 'journey.html' }
         break
       default:
         return { mode: 'none' }
@@ -614,6 +629,22 @@ export async function persistLocalWorkbenchToFirebase() {
   } catch (e) {
     console.warn('발명 명세서 초안 Firebase 동기화 실패:', e)
   }
+
+  try {
+    const rawJourney = localStorage.getItem(JOURNEY_DRAFT_KEY)
+    if (rawJourney) {
+      const data = JSON.parse(rawJourney)
+      const hasContent =
+        data &&
+        typeof data === 'object' &&
+        (String(data.reflection || '').trim() || String(data.letter || '').trim())
+      if (hasContent) {
+        await saveStudentActivity('journey', data)
+      }
+    }
+  } catch (e) {
+    console.warn('발명 여정 돌아보기 Firebase 동기화 실패:', e)
+  }
 }
 
 /**
@@ -681,8 +712,9 @@ export function collectLocalActivitySet() {
 
   const inventionSpec = parseJsonOrNull(localStorage.getItem(INVENTION_SPEC_DRAFT_KEY))
   const reflection = parseJsonOrNull(localStorage.getItem(REFLECTION_LOCAL_KEY))
+  const journey = parseJsonOrNull(localStorage.getItem(JOURNEY_DRAFT_KEY))
 
-  return { seed, analysis, idea, drawing, inventionSpec, reflection }
+  return { seed, analysis, idea, drawing, inventionSpec, reflection, journey }
 }
 
 /**
@@ -751,6 +783,15 @@ export async function applyActivitySetToLocal(set) {
       applied.push('reflection')
     } catch (e) {
       console.warn('reflection 복원 실패:', e)
+    }
+  }
+
+  if (set.journey && typeof set.journey === 'object') {
+    try {
+      localStorage.setItem(JOURNEY_DRAFT_KEY, JSON.stringify(set.journey))
+      applied.push('journey')
+    } catch (e) {
+      console.warn('journey 복원 실패:', e)
     }
   }
 
@@ -859,7 +900,18 @@ async function _generateFinalPdfImpl(options = {}) {
 
     const reflectionData = options.reflectionOverride || activities.reflection?.data
 
-    if (!analysisData && !ideaData && !drawingData && !reflectionData) {
+    let journeyData = activities.journey?.data
+    try {
+      const raw = localStorage.getItem(JOURNEY_DRAFT_KEY)
+      if (raw) {
+        const p = JSON.parse(raw)
+        if (p && typeof p === 'object' && (String(p.reflection || '').trim() || String(p.letter || '').trim())) {
+          journeyData = p
+        }
+      }
+    } catch (_) {}
+
+    if (!analysisData && !ideaData && !drawingData && !reflectionData && !journeyData) {
       alert('저장된 활동이 없습니다. 먼저 활동을 완료해주세요.')
       return
     }
@@ -878,6 +930,7 @@ async function _generateFinalPdfImpl(options = {}) {
         ${ideaData ? generateIdeaSection(ideaData) : ''}
         ${drawingData ? generateDrawingSection(drawingData) : ''}
         ${reflectionData ? generateReflectionSection(reflectionData) : ''}
+        ${journeyData ? generateJourneySection(journeyData) : ''}
       </div>
     `
 
@@ -1189,6 +1242,75 @@ function generateReflectionSection(reflectionData) {
       <div>
         <h3 style="font-size: 16px; font-weight: bold; margin-bottom: 8px; color: #475569;">교사 피드백</h3>
         <div style="font-size: 14px; line-height: 1.8; margin-left: 10px; padding: 15px; background: #ecfdf5; border-radius: 8px; white-space: pre-wrap;">${sanitize(feedback)}</div>
+      </div>
+      ` : ''}
+
+      ${reflectionQuestion ? `
+      <div style="margin-top: 20px;">
+        <h3 style="font-size: 16px; font-weight: bold; margin-bottom: 8px; color: #475569;">성찰 질문과 나의 생각</h3>
+        <div style="margin-left: 10px; padding: 15px; background: #eff6ff; border-radius: 8px; border-left: 4px solid #2563eb;">
+          <div style="font-size: 14px; font-weight: 700; color: #1d4ed8; margin-bottom: 8px;">💭 ${sanitize(reflectionQuestion)}</div>
+          <div style="font-size: 14px; line-height: 1.8; color: ${reflectionAnswer ? '#0f172a' : '#94a3b8'}; white-space: pre-wrap;">${reflectionAnswer ? sanitize(reflectionAnswer) : '아직 답을 적지 않았어요.'}</div>
+        </div>
+      </div>
+      ` : ''}
+    </div>
+  `
+}
+
+// 7차시 「나의 발명 여정 돌아보기」 섹션 HTML 생성
+function generateJourneySection(journeyData) {
+  if (!journeyData) return ''
+
+  const {
+    reflection,
+    letter,
+    reflectionQuestion,
+    reflectionAnswer,
+    emotionIcon,
+    emotionLabel,
+    growthIcon,
+    growthLabel,
+    growthDescription,
+  } = journeyData
+
+  const moodHtml = (emotionLabel || growthLabel)
+    ? `
+      <div style="display: flex; gap: 12px; margin-bottom: 20px; flex-wrap: wrap;">
+        ${emotionLabel ? `
+        <div style="flex: 1; min-width: 200px; padding: 14px 16px; background: #fef3c7; border-radius: 10px; border-left: 4px solid #f59e0b;">
+          <div style="font-size: 12px; color: #92400e; font-weight: 700; margin-bottom: 4px;">일곱 시간을 마친 마음</div>
+          <div style="font-size: 16px; font-weight: 700; color: #0f172a;">${sanitize(emotionIcon || '')} ${sanitize(emotionLabel)}</div>
+        </div>` : ''}
+        ${growthLabel ? `
+        <div style="flex: 1; min-width: 200px; padding: 14px 16px; background: #dcfce7; border-radius: 10px; border-left: 4px solid #16a34a;">
+          <div style="font-size: 12px; color: #166534; font-weight: 700; margin-bottom: 4px;">여정 동안의 성장</div>
+          <div style="font-size: 16px; font-weight: 700; color: #0f172a;">${sanitize(growthIcon || '')} ${sanitize(growthLabel)}</div>
+          ${growthDescription ? `<div style="font-size: 12px; color: #475569; margin-top: 4px;">${sanitize(growthDescription)}</div>` : ''}
+        </div>` : ''}
+      </div>
+    `
+    : ''
+
+  return `
+    <div style="margin-bottom: 30px; padding: 30px; background: #f5f3ff; border-radius: 12px; border-left: 4px solid #7c3aed;">
+      <h2 style="font-size: 22px; font-weight: bold; margin-bottom: 25px; color: #7c3aed;">
+        5. 나의 발명 여정 돌아보기
+      </h2>
+
+      ${moodHtml}
+
+      ${reflection ? `
+      <div style="margin-bottom: ${letter ? '25px' : '0'};">
+        <h3 style="font-size: 16px; font-weight: bold; margin-bottom: 8px; color: #475569;">일곱 시간을 마친 소감</h3>
+        <div style="font-size: 14px; line-height: 1.8; margin-left: 10px; padding: 15px; background: white; border-radius: 8px; white-space: pre-wrap;">${sanitize(reflection)}</div>
+      </div>
+      ` : ''}
+
+      ${letter ? `
+      <div>
+        <h3 style="font-size: 16px; font-weight: bold; margin-bottom: 8px; color: #475569;">여정에 보내는 편지</h3>
+        <div style="font-size: 14px; line-height: 1.8; margin-left: 10px; padding: 15px; background: #ecfdf5; border-radius: 8px; white-space: pre-wrap;">${sanitize(letter)}</div>
       </div>
       ` : ''}
 

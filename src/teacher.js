@@ -498,6 +498,7 @@ function getActivityTypeLabel(type) {
     drawing: '발명품 표현하기',
     reflection: '오늘 활동 소감',
     invention_spec: '나만의 발명품 명세서 완성하기',
+    journey: '나의 발명 여정 돌아보기',
     spec_explore_reflection: '내 생각 정리',
     spec_self_check: '스스로 따져 보기',
   }
@@ -523,6 +524,11 @@ function getActivityPreview(activity) {
     const { reflection, feedback } = data || {}
     const preview = reflection ? sanitize(reflection.substring(0, 100)) : '소감 내용 없음'
     return `<p>${preview}${reflection && reflection.length > 100 ? '...' : ''}</p>${feedback ? '<p style="color: #64748b; font-size: 0.9em; margin-top: 8px;">피드백 있음</p>' : ''}`
+  } else if (type === 'journey') {
+    const { reflection, letter, emotionLabel, growthLabel } = data || {}
+    const mood = [emotionLabel, growthLabel].filter(Boolean).join(' · ')
+    const preview = reflection ? sanitize(reflection.substring(0, 100)) : '여정 소감 없음'
+    return `${mood ? `<p style="color: #475569; font-size: 0.9em;">${sanitize(mood)}</p>` : ''}<p>${preview}${reflection && reflection.length > 100 ? '...' : ''}</p>${letter ? '<p style="color: #64748b; font-size: 0.9em; margin-top: 8px;">여정 편지 있음</p>' : ''}`
   }
   
   return '<p>활동 내용</p>'
@@ -663,6 +669,32 @@ function showActivityDetailModal(activity) {
           <div style="padding: 15px; background: #ecfdf5; border-radius: 8px; white-space: pre-wrap; line-height: 1.8;">${sanitize(feedback)}</div>
         </div>
       ` : '<p>피드백이 아직 생성되지 않았습니다.</p>'}
+    `
+  } else if (type === 'journey') {
+    const d = data || {}
+    detailHtml = `
+      <h3>나의 발명 여정 돌아보기</h3>
+      <p><strong>작성일:</strong> ${date}</p>
+      ${d.emotionLabel ? `<p><strong>일곱 시간을 마친 마음:</strong> ${sanitize(d.emotionLabel)}</p>` : ''}
+      ${d.growthLabel ? `<p><strong>여정 동안의 성장:</strong> ${sanitize(d.growthLabel)}${d.growthDescription ? ` (${sanitize(d.growthDescription)})` : ''}</p>` : ''}
+      ${d.reflection ? `
+        <div style="margin-bottom: 25px;">
+          <p><strong>학생 소감:</strong></p>
+          <div style="padding: 15px; background: #f8fafc; border-radius: 8px; white-space: pre-wrap; line-height: 1.8;">${sanitize(d.reflection)}</div>
+        </div>
+      ` : '<p>여정 소감이 없습니다.</p>'}
+      ${d.letter ? `
+        <div style="margin-bottom: 25px;">
+          <p><strong>여정에 보내는 편지:</strong></p>
+          <div style="padding: 15px; background: #ecfdf5; border-radius: 8px; white-space: pre-wrap; line-height: 1.8;">${sanitize(d.letter)}</div>
+        </div>
+      ` : ''}
+      ${d.reflectionQuestion ? `
+        <div style="padding: 15px; background: #eff6ff; border-radius: 8px;">
+          <p style="margin: 0 0 8px; font-weight: 700; color: #1d4ed8;">💭 ${sanitize(d.reflectionQuestion)}</p>
+          <div style="white-space: pre-wrap; line-height: 1.8; color: ${d.reflectionAnswer ? '#0f172a' : '#94a3b8'};">${d.reflectionAnswer ? sanitize(d.reflectionAnswer) : '아직 답을 적지 않았어요.'}</div>
+        </div>
+      ` : ''}
     `
   } else {
     detailHtml = `

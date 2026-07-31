@@ -223,6 +223,7 @@ export const ACTIVITY_SET_KEYS = [
   'drawing',
   'inventionSpec',
   'reflection',
+  'journey',
 ]
 
 /** Firestore 단일 문서 1MB 제한을 넘기지 않도록 보수적인 상한. */
@@ -346,6 +347,7 @@ export async function saveActivitySetWithBatch(activitySet) {
     drawing: 'drawing',
     inventionSpec: 'invention_spec',
     reflection: 'reflection',
+    journey: 'journey',
   }
   for (const key of savedKeys) {
     const type = TYPE_MAP[key]
@@ -450,7 +452,14 @@ export async function getStudentActivities(maxResults = 50) {
 }
 
 /** 과거 활동 목록: 타입별로 나눠 가져와 병합 (한 타입만 연속 저장돼도 다른 단계 기록이 밀리지 않음) */
-const ACTIVITY_TIMELINE_TYPES = ['analysis', 'idea', 'drawing', 'reflection', 'invention_spec']
+const ACTIVITY_TIMELINE_TYPES = [
+  'analysis',
+  'idea',
+  'drawing',
+  'reflection',
+  'invention_spec',
+  'journey',
+]
 
 /**
  * 활동 타입별 최근 N건씩 조회 후 시간순으로 합칩니다. 단일 limit 쿼리보다 타입 간 공정하게 노출됩니다.
@@ -581,6 +590,7 @@ function pickLatestFromFlatList(activities) {
     drawing: null,
     reflection: null,
     inventionSpec: null,
+    journey: null,
   }
   for (const activity of activities) {
     if (activity.type === 'analysis' && !result.analysis) result.analysis = activity
@@ -588,12 +598,14 @@ function pickLatestFromFlatList(activities) {
     else if (activity.type === 'drawing' && !result.drawing) result.drawing = activity
     else if (activity.type === 'reflection' && !result.reflection) result.reflection = activity
     else if (activity.type === 'invention_spec' && !result.inventionSpec) result.inventionSpec = activity
+    else if (activity.type === 'journey' && !result.journey) result.journey = activity
     if (
       result.analysis &&
       result.idea &&
       result.drawing &&
       result.reflection &&
-      result.inventionSpec
+      result.inventionSpec &&
+      result.journey
     ) {
       break
     }
@@ -644,20 +656,28 @@ export async function getRecentActivities() {
     const userId = localStorage.getItem('userId')
 
     if (!firebaseResult.app || !userId) {
-      return { analysis: null, idea: null, drawing: null, reflection: null, inventionSpec: null }
+      return {
+        analysis: null,
+        idea: null,
+        drawing: null,
+        reflection: null,
+        inventionSpec: null,
+        journey: null,
+      }
     }
 
     const db = getFirestore(firebaseResult.app)
 
     try {
-      const [analysis, idea, drawing, reflection, inventionSpec] = await Promise.all([
+      const [analysis, idea, drawing, reflection, inventionSpec, journey] = await Promise.all([
         getLatestActivityByType(db, userId, 'analysis'),
         getLatestActivityByType(db, userId, 'idea'),
         getLatestActivityByType(db, userId, 'drawing'),
         getLatestActivityByType(db, userId, 'reflection'),
         getLatestActivityByType(db, userId, 'invention_spec'),
+        getLatestActivityByType(db, userId, 'journey'),
       ])
-      return { analysis, idea, drawing, reflection, inventionSpec }
+      return { analysis, idea, drawing, reflection, inventionSpec, journey }
     } catch (e) {
       console.warn('타입별 최신 활동 조회 실패, 목록 스캔으로 대체합니다. Firestore 복합 색인(type+timestamp)이 필요할 수 있습니다.', e)
       const activities = await getStudentActivities(300)
@@ -665,7 +685,14 @@ export async function getRecentActivities() {
     }
   } catch (error) {
     console.error('최근 활동 조회 오류:', error)
-    return { analysis: null, idea: null, drawing: null, reflection: null, inventionSpec: null }
+    return {
+      analysis: null,
+      idea: null,
+      drawing: null,
+      reflection: null,
+      inventionSpec: null,
+      journey: null,
+    }
   }
 }
 

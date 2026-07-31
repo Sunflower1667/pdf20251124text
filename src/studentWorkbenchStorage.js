@@ -12,6 +12,7 @@ const WORKBENCH_DRAFT_KEYS = [
   'pro10-drawing-check',
   'myInventionSpecDraft',
   'specExploreReflection',
+  'pro10-journey-draft',
 ]
 
 export function clearStudentWorkbenchLocalDrafts() {

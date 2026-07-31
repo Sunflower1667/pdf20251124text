@@ -39,6 +39,7 @@ export default defineConfig(({ mode }) => {
                 idea: resolve(__dirname, 'idea.html'),
                 seed: resolve(__dirname, 'seed.html'),
                 reflection: resolve(__dirname, 'reflection.html'),
+                journey: resolve(__dirname, 'journey.html'),
                 teacher: resolve(__dirname, 'teacher.html'),
                 drawing: resolve(__dirname, 'drawing.html'),
             },

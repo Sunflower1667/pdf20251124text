@@ -85,6 +85,15 @@ app.innerHTML = `
               </svg>
             </button>
           </li>
+          <li class="activity-progress__connector" aria-hidden="true"></li>
+          <li class="activity-progress__step" data-step-index="7">
+            <button type="button" class="activity-nav-btn activity-progress__dot" data-activity-src="journey.html" data-step-title="나의 발명 여정 돌아보기" aria-label="7단계: 나의 발명 여정 돌아보기">
+              <span class="activity-progress__num">7</span>
+              <svg class="activity-progress__check" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                <path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </button>
+          </li>
         </ol>
         <p class="activity-progress__label" id="activity-progress-label" aria-live="polite">활동할 단계를 선택하세요</p>
       </nav>
@@ -519,6 +528,7 @@ async function showPastActivitiesModal(activities) {
                   drawing: '발명품 표현하기',
                   reflection: '오늘 활동 소감',
                   invention_spec: '나만의 발명품 명세서 완성하기',
+                  journey: '나의 발명 여정 돌아보기',
                   spec_explore_reflection: '내 생각 정리',
                   spec_self_check: '스스로 따져 보기',
                 }
@@ -714,6 +724,18 @@ function getActivityPreview(activity) {
     if (first)
       return `<p>${sanitize(first.substring(0, 120))}${first.length > 120 ? '...' : ''}</p>`
     return '<p>명세서 초안이 저장되어 있습니다.</p>'
+  } else if (type === 'journey') {
+    const { reflection, letter, emotionIcon, emotionLabel, growthIcon, growthLabel } = data || {}
+    const mood = [
+      emotionLabel ? `${emotionIcon || ''} ${emotionLabel}` : '',
+      growthLabel ? `${growthIcon || ''} ${growthLabel}` : '',
+    ]
+      .filter(Boolean)
+      .join(' · ')
+    const preview = reflection ? sanitize(reflection.substring(0, 100)) : '여정 소감 없음'
+    return `${mood ? `<p style="color: #475569; font-size: 0.9em;">${sanitize(mood)}</p>` : ''}
+      <p>${preview}${reflection && reflection.length > 100 ? '...' : ''}</p>
+      ${letter ? '<p style="color: #64748b; font-size: 0.9em;">여정 편지 있음</p>' : ''}`
   }
   
   return '<p>활동 내용</p>'
@@ -862,6 +884,40 @@ function showActivityDetail(activity) {
         </div>
       ` : ''}
     `
+  } else if (type === 'journey') {
+    const d = data || {}
+    const moodLine = [
+      d.emotionLabel ? `지금의 마음: ${d.emotionIcon || ''} ${d.emotionLabel}` : '',
+      d.growthLabel
+        ? `성장 단계: ${d.growthIcon || ''} ${d.growthLabel}${d.growthDescription ? ` (${d.growthDescription})` : ''}`
+        : '',
+    ]
+      .filter(Boolean)
+      .map((line) => `<p>${sanitize(line)}</p>`)
+      .join('')
+    detailHtml = `
+      <h3>나의 발명 여정 돌아보기</h3>
+      <p><strong>작성일:</strong> ${date}</p>
+      ${moodLine}
+      ${d.reflection ? `
+        <div style="margin-bottom: 25px;">
+          <p><strong>일곱 시간을 마친 소감:</strong></p>
+          <div style="padding: 15px; background: #f8fafc; border-radius: 8px; white-space: pre-wrap; line-height: 1.8;">${sanitize(d.reflection)}</div>
+        </div>
+      ` : '<p>여정 소감이 없습니다.</p>'}
+      ${d.letter ? `
+        <div style="margin-bottom: 25px;">
+          <p><strong>여정에 보내는 편지:</strong></p>
+          <div style="padding: 15px; background: #ecfdf5; border-radius: 8px; white-space: pre-wrap; line-height: 1.8;">${sanitize(d.letter)}</div>
+        </div>
+      ` : ''}
+      ${d.reflectionQuestion ? `
+        <div style="padding: 15px; background: #eff6ff; border-radius: 8px;">
+          <p style="margin: 0 0 8px; font-weight: 700; color: #1d4ed8;">💭 ${sanitize(d.reflectionQuestion)}</p>
+          <div style="white-space: pre-wrap; line-height: 1.8; color: ${d.reflectionAnswer ? '#0f172a' : '#94a3b8'};">${d.reflectionAnswer ? sanitize(d.reflectionAnswer) : '아직 답을 적지 않았어요.'}</div>
+        </div>
+      ` : ''}
+    `
   }
   
   // 상세 보기 모달 생성
@@ -960,6 +1016,7 @@ const ACTIVITY_KEY_LABELS = {
   drawing: '발명품 그림',
   inventionSpec: '발명품 명세서',
   reflection: '활동 소감',
+  journey: '발명 여정 돌아보기',
 }
 
 function formatSavedKeys(keys) {
