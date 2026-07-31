@@ -550,7 +550,10 @@ function showActivityDetailModal(activity) {
       <ul>${Array.isArray(materials) ? materials.map(m => `<li>${sanitize(m)}</li>`).join('') : '<li>정보 없음</li>'}</ul>
     `
   } else if (type === 'idea') {
-    const { keywords, generatedIdeas, selectedIdea, chatHistory, refinedIdea } = data || {}
+    const { keywords, generatedIdeas, selectedIdea, selectionReason, selfCheck, chatHistory, refinedIdea } = data || {}
+    const selfCheckItems = Array.isArray(selfCheck)
+      ? selfCheck.filter((q) => q && String(q.question || '').trim())
+      : []
     let refinedIdeaHtml = ''
     if (refinedIdea) {
       if (typeof refinedIdea === 'string') {
@@ -591,6 +594,28 @@ function showActivityDetailModal(activity) {
         <div style="margin-bottom: 20px;">
           <p><strong>선택한 아이디어:</strong> ${sanitize(selectedIdea.name || '정보 없음')}</p>
           <p style="white-space: pre-wrap;">${sanitize(selectedIdea.description || '정보 없음')}</p>
+        </div>
+      ` : ''}
+      ${selectionReason && String(selectionReason).trim() ? `
+        <div style="margin-bottom: 20px;">
+          <p><strong>이 아이디어가 마음에 든 이유:</strong></p>
+          <div style="padding: 12px 15px; background: #ecfdf5; border-radius: 8px; white-space: pre-wrap;">${sanitize(selectionReason)}</div>
+        </div>
+      ` : ''}
+      ${selfCheckItems.length > 0 ? `
+        <div style="margin-bottom: 20px;">
+          <p><strong>골라 놓고 따져 보기:</strong></p>
+          <div style="display: flex; flex-direction: column; gap: 10px;">
+            ${selfCheckItems.map((q, i) => {
+              const answer = String(q.answer || '').trim()
+              return `
+                <div style="padding: 12px 15px; background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px;">
+                  <p style="margin: 0 0 6px;"><strong>${i + 1}. ${sanitize(q.question)}</strong>${q.focus ? ` <span style="color: #92400e; font-size: 0.85em;">(${sanitize(q.focus)})</span>` : ''}</p>
+                  <p style="margin: 0; white-space: pre-wrap; color: ${answer ? '#0f172a' : '#94a3b8'};">${answer ? sanitize(answer) : '답하지 않음'}</p>
+                </div>
+              `
+            }).join('')}
+          </div>
         </div>
       ` : ''}
       ${chatHistory && Array.isArray(chatHistory) && chatHistory.length > 0 ? `

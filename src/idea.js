@@ -15,6 +15,8 @@ const KOREAN_ONLY = '- 반드시 한국어로만 답해.'
 const SPEC_SELF_CHECK_KEY = 'specSelfCheck'
 /** 2차시 「명세서 탐색하기」에서 학생이 적은 좋은 점·아쉬운 점 */
 const SPEC_EXPLORE_REFLECTION_KEY = 'specExploreReflection'
+/** 1차시 「발명의 씨앗」에서 학생이 적은 관심사와 불편함 */
+const SEED_DRAFT_KEY = 'pro10-seed-draft'
 
 const TRIZ_PRINCIPLES = [
   { id: 1, name: '쪼개기 (분할)', desc: '하나를 여러 개로 나누기', example: '조립식 레고, 화면을 접는 폴더블폰' },
@@ -190,6 +192,23 @@ if (!analysisData || Object.keys(analysisData).length === 0) {
           <p>선택한 아이디어를 구체화하기 위해 교사와 대화하듯이 질문해 보세요. 최대 10번까지 질문할 수 있습니다.</p>
         </div>
         <div id="selected-idea" class="selected-idea"></div>
+
+        <div class="idea-self-check" id="idea-self-check" hidden>
+          <div class="idea-self-check-head">
+            <h3>골라 놓고 따져 보기</h3>
+            <button id="idea-self-check-refresh-btn" type="button" class="btn-ghost idea-self-check-refresh" disabled>점검 질문 받기</button>
+          </div>
+          <p class="idea-self-check-desc">
+            자세히 만들기 전에, 이 아이디어를 정말 만들 수 있을지 그리고 누구에게 어떤 의미가 있을지 따져 볼 거예요.
+            위에 <strong>마음에 든 이유</strong>를 먼저 적으면, 그 이유를 살린 질문 3개를 만들어 줘요. 정답은 없어요.
+          </p>
+          <p id="idea-self-check-status" class="idea-self-check-status" role="status" aria-live="polite" hidden></p>
+          <div id="idea-self-check-list" class="idea-self-check-list"></div>
+          <div class="idea-self-check-actions">
+            <button id="save-idea-self-check-btn" type="button" class="btn-secondary" disabled>내 답변 저장하기</button>
+          </div>
+        </div>
+
         <div id="chat-messages" class="chat-messages"></div>
         <div class="chat-input-container">
           <textarea id="chat-input" placeholder="아이디어에 대해 질문하거나 설명을 요청하세요..." rows="3"></textarea>
@@ -244,6 +263,11 @@ const diagnosisSection = document.querySelector('#idea-diagnosis')
 const diagnosisCards = document.querySelector('#diagnosis-cards')
 const diagnosisAnalysisBody = document.querySelector('#diagnosis-analysis-body')
 const rerunAnalysisBtn = document.querySelector('#rerun-analysis-btn')
+const ideaSelfCheckBlock = document.querySelector('#idea-self-check')
+const ideaSelfCheckList = document.querySelector('#idea-self-check-list')
+const ideaSelfCheckStatusEl = document.querySelector('#idea-self-check-status')
+const ideaSelfCheckRefreshBtn = document.querySelector('#idea-self-check-refresh-btn')
+const saveIdeaSelfCheckBtn = document.querySelector('#save-idea-self-check-btn')
 
 const MAX_CHAT_TURNS = 10
 
@@ -264,6 +288,8 @@ let diagnosisScores = []
 let diagnosisAnalysisText = ''
 let radarChart = null
 let analysisDebounceTimer = null
+let ideaSelfCheckQuestions = []
+let ideaSelfCheckBusy = false
 
 /** 학생 대시보드(iframe 부모)에 아이디어 단계 표시 동기화 */
 function notifyParentIdeaStep(step) {
@@ -334,6 +360,7 @@ if (generateIdeasBtn) {
       lastDrawbacks = drawbacks
       selectedIdeaIndex = -1
       chatHistory = []
+      resetIdeaSelfCheck()
       if (chatSection) chatSection.style.display = 'none'
       if (refinedIdeasSection) refinedIdeasSection.style.display = 'none'
       if (saveChatBtn) saveChatBtn.disabled = true
@@ -411,6 +438,7 @@ if (regenerateIdeasBtn) {
     selectedIdeaIndex = -1
     chatHistory = []
     refinedIdeasData = []
+    resetIdeaSelfCheck()
     chatSection.style.display = 'none'
     refinedIdeasSection.style.display = 'none'
     if (saveChatBtn) saveChatBtn.disabled = true
@@ -475,6 +503,7 @@ if (saveChatBtn) {
         drawbacks: lastDrawbacks,
         selectedIdea: selectedIdea,
         selectionReason: selectionReason,
+        selfCheck: buildIdeaSelfCheckPayload(),
         chatHistory: chatHistory,
         refinedIdea: refinedIdeasData.length > 0 ? refinedIdeasData[refinedIdeasData.length - 1] : null
       })
@@ -522,6 +551,18 @@ if (refineIdeaBtn) {
 if (rerunAnalysisBtn) {
   rerunAnalysisBtn.addEventListener('click', () => {
     void requestDiagnosisAnalysis({ silent: false })
+  })
+}
+
+if (ideaSelfCheckRefreshBtn) {
+  ideaSelfCheckRefreshBtn.addEventListener('click', () => {
+    void generateIdeaSelfCheckQuestions({ manual: true })
+  })
+}
+
+if (saveIdeaSelfCheckBtn) {
+  saveIdeaSelfCheckBtn.addEventListener('click', () => {
+    void saveIdeaSelfCheckAnswers()
   })
 }
 
@@ -1108,18 +1149,30 @@ async function fetchDiagnosisAnalysis(apiKey, ideas, scores) {
     })
     .join('\n')
 
-  const prompt = `너는 친절한 데이터 분석가야. 중학생이 발명 아이디어 3개를 4가지 기준(참신함, 쓸모, 현실성, 지속가능성)에 대해 1~5점 슬라이더로 평가한 결과를 보고, 학생이 이해하기 쉽게 비교 분석 코멘트를 작성해 줘.
+  const prompt = `너는 대한민국 중학생의 발명 학습을 돕는 발명 보조교사야.
+학생이 발명 아이디어 3개를 네 가지 기준으로 1점부터 5점까지 직접 평가했어. 그 결과를 학생이 한눈에 견주어 볼 수 있도록 정리해 줘.
 
-[규칙]
-- 어투는 해요체("~예요", "~어요", "~네요")로 통일.
-- 4~6문장 정도로 간결하게.
-- "아이디어 1은 창의성이 높지만 실현 가능성이 낮고, 아이디어 2는 전체적으로 밸런스가 좋아요!" 같은 식으로 각 아이디어의 강점/약점을 비교해 줘.
-- 어떤 아이디어가 어떤 상황에서 좋은지 살짝 추천도 곁들여 줘.
-- 점수가 모두 동일하다면 "더 솔직하게 평가해 보세요"라고 부드럽게 안내해 줘.
-- JSON이나 머리말·꼬리말 없이 순수한 한국어 텍스트만 출력해.
+[네 가지 기준]
+- 참신함: 지금까지 없던 새로운 점이 있는가
+- 쓸모: 실제로 불편함을 없애 주는가
+- 현실성: 만들어 낼 수 있는가
+- 지속가능성: 오래 쓰이고 환경에 부담이 적은가
 
-[아이디어 및 점수]
-${ideaLines}`
+[학생이 매긴 점수]
+${ideaLines}
+
+[정리 규칙 — 매우 중요]
+- 학생이 매긴 점수만 근거로 써. 네가 점수를 다시 매기거나 학생 평가가 틀렸다고 말하지 마.
+- 아이디어마다 어느 기준이 높고 어느 기준이 낮은지 견주어 보여 줘.
+  예를 들면 "1번은 참신함이 높지만 현실성이 낮고, 2번은 네 기준이 고르게 나왔네요"처럼.
+- 어떤 아이디어가 더 좋다고 추천하지 마. 고르는 건 학생이 할 일이야. 대신 "무엇을 더 중요하게 생각하느냐에 따라 답이 달라져요"처럼, 판단 기준이 학생에게 있다는 걸 알려 줘.
+- 순위를 매기거나 총점을 계산해서 알려 주지 마.
+- 네 기준의 점수가 모두 같으면, 나무라지 말고 "네 기준에 모두 같은 점수를 줬네요. 기준마다 조금이라도 차이가 나는 곳이 있는지 다시 한번 볼까요?"처럼 부드럽게 안내해 줘.
+- 아직 점수를 매기지 않은 칸이 있으면 그 칸을 짚어 주고, 없는 점수를 짐작해서 말하지 마.
+- 오늘 할 일은 "아이디어 고르고 자세히 만들기"까지야. 도면이나 명세서 이야기는 하지 마.
+${KOREAN_ONLY}
+- 어투는 존댓말 해요체("~예요", "~어요", "~네요")로 통일해.
+- 4~6문장으로 간결하게 써. JSON이나 머리말·꼬리말 없이 한국어 문장만 출력해.`
 
   const response = await fetch(OPENAI_URL, {
     method: 'POST',
@@ -1173,6 +1226,7 @@ async function pickIdea(index) {
       selectedIdea: idea,
       selectedIdeaId: ideaId,
       selectionReason: selectionReason,
+      selfCheck: buildIdeaSelfCheckPayload(),
       diagnosis: {
         criteria: DIAGNOSIS_CRITERIA.map((c) => c.key),
         scores: diagnosisScores,
@@ -1205,6 +1259,8 @@ function selectIdea(index, idea) {
   renderChatMessages()
   chatInput.focus()
   if (refineIdeaBtn) refineIdeaBtn.disabled = true
+  resetIdeaSelfCheck()
+  showIdeaSelfCheckPrompt()
   flushStudentIdeaSessionToStorage()
   notifyParentIdeaStep('concretize')
 }
@@ -1237,8 +1293,312 @@ function renderSelectedIdea(idea) {
   if (reasonInput) {
     reasonInput.addEventListener('input', (e) => {
       selectionReason = e.target.value
+      showIdeaSelfCheckPrompt()
       flushStudentIdeaSessionToStorage()
     })
+  }
+}
+
+/** 1차시 「발명의 씨앗」에서 학생이 적어 둔 불편함을 읽어 온다. */
+function readSeedDiscomfort() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(SEED_DRAFT_KEY) || 'null')
+    return typeof parsed?.discomfort === 'string' ? parsed.discomfort.trim() : ''
+  } catch {
+    return ''
+  }
+}
+
+function buildDiagnosisScoreLine(scores) {
+  if (!scores) return '(아직 평가하지 않음)'
+  return DIAGNOSIS_CRITERIA.map((c) => `${c.label} ${scores[c.key] ?? '-'}점`).join(' / ')
+}
+
+function setIdeaSelfCheckStatus(message, mode = 'info') {
+  if (!ideaSelfCheckStatusEl) return
+  ideaSelfCheckStatusEl.textContent = message || ''
+  ideaSelfCheckStatusEl.dataset.mode = mode
+  ideaSelfCheckStatusEl.hidden = !message
+}
+
+function isIdeaSelfCheckComplete() {
+  return (
+    ideaSelfCheckQuestions.length > 0 &&
+    ideaSelfCheckQuestions.every((q) => String(q.answer || '').trim())
+  )
+}
+
+function refreshSaveIdeaSelfCheckBtn() {
+  if (saveIdeaSelfCheckBtn) saveIdeaSelfCheckBtn.disabled = !isIdeaSelfCheckComplete()
+}
+
+function hasSelectionReason() {
+  return Boolean(String(selectionReason || '').trim())
+}
+
+/** 선택 이유를 적어야 질문을 받을 수 있으므로 버튼 상태와 안내 문구를 함께 맞춘다. */
+function showIdeaSelfCheckPrompt() {
+  if (selectedIdeaIndex < 0) return
+  if (ideaSelfCheckBlock) ideaSelfCheckBlock.hidden = false
+
+  if (ideaSelfCheckRefreshBtn) {
+    ideaSelfCheckRefreshBtn.disabled = ideaSelfCheckBusy || !hasSelectionReason()
+    ideaSelfCheckRefreshBtn.textContent =
+      ideaSelfCheckQuestions.length > 0 ? '질문 다시 받기' : '점검 질문 받기'
+  }
+
+  if (ideaSelfCheckBusy || ideaSelfCheckQuestions.length > 0) return
+
+  setIdeaSelfCheckStatus(
+    hasSelectionReason()
+      ? '[점검 질문 받기]를 누르면 질문 3개가 도착해요.'
+      : '위에 이 아이디어가 마음에 든 이유를 먼저 적어 주세요. 그 이유를 살려서 질문을 만들어 줄게요.',
+    hasSelectionReason() ? 'info' : 'warn'
+  )
+}
+
+function handleIdeaSelfCheckAnswerInput(event) {
+  const index = Number.parseInt(event.target.dataset.index, 10)
+  if (!Number.isInteger(index) || !ideaSelfCheckQuestions[index]) return
+  ideaSelfCheckQuestions[index].answer = event.target.value
+  refreshSaveIdeaSelfCheckBtn()
+  flushStudentIdeaSessionToStorage()
+}
+
+function renderIdeaSelfCheck() {
+  if (!ideaSelfCheckList) return
+
+  ideaSelfCheckList.innerHTML = ideaSelfCheckQuestions
+    .map(
+      (q, i) => `
+        <div class="idea-self-check-item">
+          <span class="idea-self-check-index">${i + 1}</span>
+          <div class="idea-self-check-body">
+            ${q.focus ? `<span class="idea-self-check-focus">${sanitize(q.focus)}</span>` : ''}
+            <p class="idea-self-check-question">${sanitize(q.question)}</p>
+            <label class="sr-only" for="idea-self-check-answer-${i}">${sanitize(q.question)}에 대한 내 생각</label>
+            <textarea
+              id="idea-self-check-answer-${i}"
+              class="idea-self-check-answer"
+              data-index="${i}"
+              rows="3"
+              placeholder="내 생각을 적어 보세요."
+            >${sanitize(q.answer || '')}</textarea>
+          </div>
+        </div>
+      `
+    )
+    .join('')
+
+  for (const el of ideaSelfCheckList.querySelectorAll('.idea-self-check-answer')) {
+    el.addEventListener('input', handleIdeaSelfCheckAnswerInput)
+  }
+
+  refreshSaveIdeaSelfCheckBtn()
+}
+
+function resetIdeaSelfCheck() {
+  ideaSelfCheckQuestions = []
+  if (ideaSelfCheckList) ideaSelfCheckList.innerHTML = ''
+  if (ideaSelfCheckBlock) ideaSelfCheckBlock.hidden = true
+  if (ideaSelfCheckRefreshBtn) {
+    ideaSelfCheckRefreshBtn.disabled = true
+    ideaSelfCheckRefreshBtn.textContent = '점검 질문 받기'
+  }
+  setIdeaSelfCheckStatus('')
+  refreshSaveIdeaSelfCheckBtn()
+}
+
+function restoreIdeaSelfCheck(saved) {
+  ideaSelfCheckQuestions = Array.isArray(saved)
+    ? saved
+        .filter((q) => q && typeof q.question === 'string' && q.question.trim())
+        .map((q) => ({
+          focus: String(q.focus || '').trim(),
+          question: q.question.trim(),
+          answer: typeof q.answer === 'string' ? q.answer : '',
+        }))
+    : []
+
+  renderIdeaSelfCheck()
+  setIdeaSelfCheckStatus('')
+  showIdeaSelfCheckPrompt()
+}
+
+async function generateIdeaSelfCheckQuestions({ manual = false } = {}) {
+  if (ideaSelfCheckBusy) return
+
+  const idea = generatedIdeas[selectedIdeaIndex]
+  if (!idea) {
+    setIdeaSelfCheckStatus('먼저 아이디어를 하나 골라 주세요.', 'warn')
+    return
+  }
+  if (!hasSelectionReason()) {
+    setIdeaSelfCheckStatus('먼저 이 아이디어가 마음에 든 이유를 적어 주세요.', 'warn')
+    document.querySelector('#selection-reason-input')?.focus()
+    return
+  }
+  if (
+    manual &&
+    ideaSelfCheckQuestions.some((q) => String(q.answer || '').trim()) &&
+    !confirm('질문을 새로 받으면 지금 적은 답변이 지워져요. 계속할까요?')
+  ) {
+    return
+  }
+
+  const apiKey = import.meta.env.VITE_OPENAI_API_KEY
+  if (!apiKey) {
+    setIdeaSelfCheckStatus('.env 파일에 VITE_OPENAI_API_KEY를 설정해 주세요.', 'error')
+    return
+  }
+
+  ideaSelfCheckBusy = true
+  if (ideaSelfCheckRefreshBtn) ideaSelfCheckRefreshBtn.disabled = true
+  if (ideaSelfCheckBlock) ideaSelfCheckBlock.hidden = false
+  setIdeaSelfCheckStatus('질문을 만드는 중입니다…', 'info')
+
+  try {
+    const questions = await requestIdeaSelfCheckQuestions(apiKey, {
+      chosenIdea: idea,
+      scoreLine: buildDiagnosisScoreLine(diagnosisScores[selectedIdeaIndex]),
+      whyChosen: selectionReason,
+      discomfort: readSeedDiscomfort(),
+    })
+    ideaSelfCheckQuestions = questions.map((q) => ({ ...q, answer: '' }))
+    renderIdeaSelfCheck()
+    setIdeaSelfCheckStatus('질문 3개가 도착했어요. 천천히 생각해서 답해 보세요.', 'success')
+    flushStudentIdeaSessionToStorage()
+  } catch (error) {
+    console.error('골라 놓고 따져 보기 질문 생성 오류:', error)
+    setIdeaSelfCheckStatus(
+      error.message || '질문을 만들지 못했어요. 버튼을 다시 눌러 주세요.',
+      'error'
+    )
+  } finally {
+    ideaSelfCheckBusy = false
+    showIdeaSelfCheckPrompt()
+  }
+}
+
+async function requestIdeaSelfCheckQuestions(apiKey, { chosenIdea, scoreLine, whyChosen, discomfort }) {
+  const prompt = `너는 대한민국 중학생의 발명 학습을 돕는 발명 보조교사야. 학생이 발명 아이디어를 하나 골랐어. 이제 그 아이디어를 자세히 만들기 전에, 정말 만들 수 있는지 그리고 누구에게 어떤 의미가 있는지를 스스로 따져 볼 수 있도록 점검 질문 3개를 만들어 줘.
+
+[학생이 고른 아이디어]
+- 이름: ${chosenIdea?.name || '(정보 없음)'}
+- 내용: ${chosenIdea?.description || '(정보 없음)'}
+- 적용된 발명 원리: ${chosenIdea?.trizPrinciple?.name || '(정보 없음)'}
+- 학생이 매긴 점수: ${scoreLine}
+
+[학생이 쓴 선택 이유]
+${whyChosen || '(작성하지 않음)'}
+
+[학생이 처음에 쓴 불편함]
+${discomfort || '(정보 없음)'}
+
+[질문 규칙 — 매우 중요]
+- 반드시 질문만 만들어. 답, 예시 답안, 정답을 절대 알려 주지 마.
+- 아이디어를 평가하거나 고칠 점을 알려 주지 마. 다른 아이디어를 권하지도 마.
+- 3개 질문은 각각 다른 것을 따져 보게 해.
+  1번은 실현 가능성 — 이걸 실제로 만들려면 무엇이 있어야 하고, 어디가 가장 어려울지
+  2번은 사회적 가치 — 이 발명이 나 말고 누구에게 도움이 될지
+  3번은 사회적 가치의 다른 면 — 이 발명 때문에 오히려 불편해지거나 곤란해지는 사람은 없을지
+- 3번 질문은 나무라는 느낌이 아니라, 미처 생각하지 못한 쪽을 함께 살펴보자는 느낌으로 써.
+- 학생이 고른 아이디어에 나오는 말과 학생이 쓴 선택 이유의 표현을 질문 안에 그대로 넣어서, 이 아이디어에만 해당하는 질문으로 만들어. 어떤 발명에나 쓸 수 있는 일반적인 질문은 안 돼.
+- 학생이 매긴 점수 중 낮은 기준이 있으면, 1번 질문이 그 기준을 자연스럽게 건드리게 해.
+- 한 질문은 한 문장, 45자 이내로 짧게.
+- "예/아니오"로 끝나는 질문 대신, 이유를 말하게 하는 질문으로 만들어.
+- 오늘 할 일은 "아이디어 고르고 자세히 만들기"까지야. 도면이나 명세서 이야기는 하지 마.
+${KOREAN_ONLY}
+- 질문은 존댓말로 써.
+
+[응답 형식 — 아래 JSON만 출력, 한글만 사용]
+{
+  "questions": [
+    { "focus": "실현 가능성", "question": "질문 한 문장" },
+    { "focus": "사회적 가치", "question": "질문 한 문장" },
+    { "focus": "놓친 사람", "question": "질문 한 문장" }
+  ]
+}`
+
+  const response = await fetch(OPENAI_URL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
+      model: OPENAI_MODEL,
+      input: [{ role: 'user', content: [{ type: 'input_text', text: prompt }] }],
+    }),
+  })
+
+  if (!response.ok) {
+    const payload = await safeJson(response)
+    throw new Error(payload?.error?.message || `API 오류 (${response.status})`)
+  }
+
+  const result = await response.json()
+  const aiText = extractAiText(result)
+  if (!aiText) throw new Error('AI 응답을 읽을 수 없습니다.')
+
+  const parsed = parseAiJson(aiText)
+  const questions = Array.isArray(parsed?.questions)
+    ? parsed.questions
+        .filter((q) => q && typeof q.question === 'string' && q.question.trim())
+        .slice(0, 3)
+        .map((q) => ({
+          focus: String(q.focus || '').trim(),
+          question: q.question.trim(),
+        }))
+    : []
+
+  if (questions.length === 0) {
+    throw new Error('질문을 받지 못했어요. 버튼을 다시 눌러 주세요.')
+  }
+
+  return questions
+}
+
+function buildIdeaSelfCheckPayload() {
+  return ideaSelfCheckQuestions.map((q) => ({
+    focus: q.focus,
+    question: q.question,
+    answer: String(q.answer || '').trim(),
+  }))
+}
+
+async function saveIdeaSelfCheckAnswers() {
+  if (!saveIdeaSelfCheckBtn) return
+  if (!isIdeaSelfCheckComplete()) {
+    alert('세 질문에 모두 답한 뒤에 저장할 수 있어요.')
+    return
+  }
+
+  const originalLabel = saveIdeaSelfCheckBtn.textContent
+  saveIdeaSelfCheckBtn.disabled = true
+  saveIdeaSelfCheckBtn.textContent = '저장 중…'
+
+  try {
+    const idea = generatedIdeas[selectedIdeaIndex] || null
+    const { saveStudentActivity } = await import('./activityStorage.js')
+    await saveStudentActivity('idea', {
+      ideas: generatedIdeas,
+      keywords: lastKeywords,
+      drawbacks: lastDrawbacks,
+      selectedIdea: idea,
+      selectedIdeaId: idea ? buildIdeaIdentifier(idea, selectedIdeaIndex) : null,
+      selectionReason: selectionReason,
+      selfCheck: buildIdeaSelfCheckPayload(),
+      chatHistory: chatHistory,
+      refinedIdea: refinedIdeasData.length > 0 ? refinedIdeasData[refinedIdeasData.length - 1] : null,
+    })
+    setIdeaSelfCheckStatus('내 답변이 저장되었어요!', 'success')
+  } catch (error) {
+    console.error('골라 놓고 따져 보기 답변 저장 오류:', error)
+    setIdeaSelfCheckStatus('저장 중 오류가 발생했어요. 다시 시도해 주세요.', 'error')
+  } finally {
+    saveIdeaSelfCheckBtn.textContent = originalLabel || '내 답변 저장하기'
+    refreshSaveIdeaSelfCheckBtn()
   }
 }
 
@@ -1283,6 +1643,7 @@ function tryRestoreStudentIdeaSession() {
       selectionReason =
         typeof s.selectionReason === 'string' ? s.selectionReason : ''
       renderSelectedIdea(idea)
+      restoreIdeaSelfCheck(s.selfCheck)
       chatSection.style.display = 'block'
       chatHistory = savedChat
       renderChatMessages()
@@ -1374,6 +1735,7 @@ async function sendMessage() {
             drawbacks: lastDrawbacks,
             selectedIdea: selectedIdea,
             selectionReason: selectionReason,
+            selfCheck: buildIdeaSelfCheckPayload(),
             chatHistory: chatHistory,
             refinedIdea: refinedIdeasData.length > 0 ? refinedIdeasData[refinedIdeasData.length - 1] : null
           })
@@ -1588,6 +1950,7 @@ ${conversationText}
         drawbacks: lastDrawbacks,
         selectedIdea: selectedIdea,
         selectionReason: selectionReason,
+        selfCheck: buildIdeaSelfCheckPayload(),
         chatHistory: chatHistory,
         refinedIdea: refined
       })
@@ -1930,6 +2293,7 @@ function flushStudentIdeaSessionToStorage() {
         ? generatedIdeas[selectedIdeaIndex]
         : null,
     selectionReason,
+    selfCheck: ideaSelfCheckQuestions,
     chatHistory,
     refinedIdea: refinedIdeasData?.length ? refinedIdeasData : null,
   }
