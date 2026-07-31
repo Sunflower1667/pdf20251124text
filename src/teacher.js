@@ -499,6 +499,7 @@ function getActivityTypeLabel(type) {
     reflection: '오늘 활동 소감',
     invention_spec: '나만의 발명품 명세서 완성하기',
     spec_explore_reflection: '내 생각 정리',
+    spec_self_check: '스스로 따져 보기',
   }
   return labels[type] || type
 }
