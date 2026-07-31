@@ -182,6 +182,17 @@ h1::before {
   line-height: 1.5;
 }
 
+.drawback-prefill-note {
+  margin: -4px 0 0;
+  font-size: 0.85rem;
+  line-height: 1.5;
+  color: #0f766e;
+}
+
+.drawback-prefill-note[hidden] {
+  display: none;
+}
+
 .keyword-input:focus {
   outline: none;
   border-color: #2563eb;
@@ -354,6 +365,44 @@ button:disabled {
   align-items: center;
   justify-content: center;
   min-height: 180px;
+}
+
+.idea-target-drawback,
+.idea-change-here,
+.idea-open-question {
+  margin: 12px 0 0 !important;
+  padding: 10px 12px;
+  border-radius: 10px;
+  font-size: 0.92rem;
+  line-height: 1.6;
+}
+
+.idea-target-drawback {
+  background: #fff7ed;
+  border: 1px solid #fed7aa;
+  color: #7c2d12;
+}
+
+.idea-change-here {
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  color: #14532d;
+}
+
+.idea-open-question {
+  background: #f8fafc;
+  border: 1px dashed #94a3b8;
+  color: #1e293b;
+}
+
+.idea-target-drawback strong,
+.idea-change-here strong,
+.idea-open-question strong {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 0.82rem;
+  letter-spacing: 0.02em;
+  opacity: 0.85;
 }
 
 .idea-triz {

@@ -10,6 +10,12 @@ Chart.register(RadarController, RadialLinearScale, PointElement, LineElement, Fi
 const OPENAI_URL = import.meta.env.VITE_OPENAI_API_URL || 'https://api.openai.com/v1/responses'
 const OPENAI_MODEL = import.meta.env.VITE_OPENAI_MODEL || 'gpt-4o-mini'
 
+const KOREAN_ONLY = '- 반드시 한국어로만 답해.'
+/** 2차시 「스스로 따져 보기」 질문과 학생 답변 */
+const SPEC_SELF_CHECK_KEY = 'specSelfCheck'
+/** 2차시 「명세서 탐색하기」에서 학생이 적은 좋은 점·아쉬운 점 */
+const SPEC_EXPLORE_REFLECTION_KEY = 'specExploreReflection'
+
 const TRIZ_PRINCIPLES = [
   { id: 1, name: '쪼개기 (분할)', desc: '하나를 여러 개로 나누기', example: '조립식 레고, 화면을 접는 폴더블폰' },
   { id: 2, name: '핵심만 뽑기 (추출)', desc: '방해되는 건 버리고 필요한 것만 빼기', example: '시끄러운 본체를 밖으로 뺀 에어컨 실외기' },
@@ -123,13 +129,16 @@ if (!analysisData || Object.keys(analysisData).length === 0) {
         </div>
 
         <div class="keyword-input-row">
-          <label for="drawback-input" class="keyword-label">앞서 분석한 발명품에서 찾은 단점(아쉬운 점)을 적어 보세요.</label>
+          <label for="drawback-input" class="keyword-label">앞서 분석한 발명품에서 찾은 단점(아쉬운 점)을 한 줄에 하나씩 적어 보세요.</label>
           <textarea
             id="drawback-input"
             class="keyword-input drawback-input"
             rows="3"
-            placeholder="예: 무게가 너무 무거워서 휴대하기 불편하고, 배터리가 빨리 닳아요."
+            placeholder="예)&#10;무게가 무거워서 들고 다니기 불편해요.&#10;배터리가 빨리 닳아요."
           ></textarea>
+          <p id="drawback-prefill-note" class="drawback-prefill-note" hidden>
+            지난 시간 「명세서 탐색하기」에서 적어 둔 아쉬운 점을 옮겨 왔어요. 고치거나 더 적어도 좋아요.
+          </p>
         </div>
 
         <div class="section-header section-header-bottom">
@@ -230,6 +239,7 @@ const refinedCards = document.querySelector('#refined-cards')
 const saveResultBtn = document.querySelector('#save-result-btn')
 const keywordInput = document.querySelector('#keyword-input')
 const drawbackInput = document.querySelector('#drawback-input')
+const drawbackPrefillNote = document.querySelector('#drawback-prefill-note')
 const diagnosisSection = document.querySelector('#idea-diagnosis')
 const diagnosisCards = document.querySelector('#diagnosis-cards')
 const diagnosisAnalysisBody = document.querySelector('#diagnosis-analysis-body')
@@ -537,65 +547,89 @@ if (saveResultBtn) {
   })
 }
 
-async function generateIdeas(apiKey, analysis, keywords, drawbacks = '') {
-  const keywordText =
-    Array.isArray(keywords) && keywords.length > 0
-      ? keywords.join(', ')
-      : '입력된 키워드 없음'
-  const drawbackText = (drawbacks || '').trim() || '입력된 단점 없음'
-
+async function generateIdeas(apiKey, analysis, keywords, drawbacksText = '') {
   const trizListText = buildTrizPromptText()
+  const summary = buildIdeaSummary(analysis)
+  const drawbacks = splitStudentItems(drawbacksText)
+  const criticalText = readCriticalText()
 
-  const prompt = `너는 중학교 기술 교사이며 TRIZ 발명 전문가야. 학생이 입력한 3가지 키워드와, 학생이 직접 분석한 기존 발명품의 단점을 함께 고려해서, TRIZ의 40가지 원리 중 가장 적합한 3가지를 골라 발명 아이디어를 제안해줘. 단, 결과만 보여주지 말고 **[적용된 TRIZ 원리]**와 [그 원리를 선택한 이유 — 어떤 단점을 어떻게 보완하는지 포함]를 중학생 수준에서 친절하게 설명해야 합니다.
+  const prompt = `너는 중학교 교사이면서 TRIZ 발명 전문가야.
+학생은 이미 수업에서 TRIZ 40가지 원리를 배웠어. 지금은 그 원리를 자기 발명에 어떻게 써야 할지
+감이 잡히지 않는 상태야. 그래서 네가 할 일은 "이 원리를 네 상황에 쓰면 이런 모습이 되는구나" 하고
+감을 잡게 해 주는 아이디어 3개를 보여 주는 거야.
 
-[TRIZ 발명 치트키 40]
+학생은 이 중 하나를 고르거나 여러 개를 섞어서, 자기만의 아이디어를 직접 만들 거야.
+그러니 학생이 손댈 곳이 없을 만큼 완성해서 주면 안 돼. 반드시 학생이 스스로 정해야 할 빈 곳을 남겨 둬야 해.
+
+[TRIZ 40가지 원리]
 ${trizListText}
 
-[규칙]
-1. 반드시 위 TRIZ 발명 치트키 40가지 원리 중에서 선택해 적용해야 해요. (TRIZ 기법을 활용하지 않은 아이디어는 금지)
-2. 아이디어 3개는 서로 다른 TRIZ 기법을 골라 적용해 주세요. (같은 기법 중복 금지)
-3. 각 아이디어는 학생이 입력한 키워드 3개와 분명히 연결되어야 해요. (키워드 중 어떤 의미가 어떻게 반영됐는지 설명에 자연스럽게 드러나야 함)
-4. 각 아이디어는 학생이 입력한 "기존 발명품의 단점"을 실제로 보완하거나 해결할 수 있어야 해요. 단점을 어떻게 개선했는지가 description이나 trizPrinciple.applied에 명확히 드러나야 해요.
-5. 명세서의 특징/재료를 힌트로 활용해 주세요.
-6. 너무 추상적이지 않고, 중학생이 실제 만들거나 상상해볼 수 있을 정도로 구체적이어야 해요.
-7. 응답의 모든 한글 문장은 해요체("~예요", "~어요")로 통일해 주세요.
+[학생이 2차시에 읽은 발명]
+- 발명품의 명칭: ${summary?.title || '(정보 없음)'}
+- 기술 분야: ${summary?.field || '(정보 없음)'}
+- 배경 기술: ${summary?.background || '(정보 없음)'}
+- 해결하고자 하는 과제: ${summary?.problem || '(정보 없음)'}
+- 과제를 해결하기 위한 수단: ${summary?.solution || '(정보 없음)'}
+- 주요 구성 부분: ${(summary?.components || []).join(', ') || '(정보 없음)'}
 
-[명세서 정보]
-- 특허 이름: ${analysis.patentName || '정보 없음'}
-- 출원 번호: ${analysis.applicationNumber || '정보 없음'}
-- 발명품의 특징: ${Array.isArray(analysis.features) ? analysis.features.join(', ') : analysis.features || '정보 없음'}
-- 발명품의 재료: ${Array.isArray(analysis.materials) ? analysis.materials.join(', ') : analysis.materials || '정보 없음'}
+[학생이 직접 찾아낸 단점]
+${(drawbacks || []).map((d, i) => `${i + 1}. ${d}`).join('\n') || '(작성하지 않음)'}
 
-[학생이 입력한 키워드 3개]
-- ${keywordText}
+[학생이 따져 본 내용]
+${criticalText}
 
-[학생이 분석한 기존 발명품의 단점]
-${drawbackText}
+[학생이 이번 시간에 고른 핵심 단어 3개]
+${(keywords || []).join(', ') || '(입력하지 않음)'}
 
-[프로토타입 스케치 SVG 요구사항]
-- 시점: 평면도보다는 정면도나 대각선에서 본 모습 위주.
-- 표현: 매우 단순한 도형(직사각형, 원, 선, 삼각형, 타원 등)만 사용. 핵심 부위에는 짧은 <text> 라벨(예: '버튼', '입구')을 넣어도 좋아요. 검은색 선과 포인트 컬러 1~2개만 사용.
-- 크기: 200x150 (viewBox='0 0 200 150').
-- 손으로 그린 듯 단순하게.
+[규칙 — 매우 중요]
+1. 위 [TRIZ 40가지 원리] 안에서만 골라. 목록에 없는 원리를 지어내지 마.
+2. 아이디어 3개는 서로 다른 원리를 써. 같은 원리를 두 번 쓰지 마.
+3. 학생이 직접 찾아낸 단점이나 따져 본 내용 중 어떤 것을 겨냥한 아이디어인지 분명히 드러나야 해.
+   학생이 쓴 표현을 그대로 가져다 써서, 자기 이야기에서 나온 아이디어라고 느끼게 해.
+4. 학생이 고른 핵심 단어 3개가 아이디어 안에 어떻게 반영됐는지 드러나야 해.
+5. 2차시 명세서의 구성 부분과 해결 수단을 참고해서, 무엇을 바꾸면 좋을지 실마리를 잡아.
+6. **바꿀 곳이 없을 만큼 완성해서 주지 마.** 각 아이디어는 "어디를 어떻게 바꾸는 방향"까지만 말하고,
+   구체적인 모양, 크기, 재료, 작동 방식 같은 것은 정하지 마. 그건 학생이 정할 몫이야.
+7. 각 아이디어마다 학생이 반드시 스스로 정해야 하는 것을 openQuestion에 질문 한 개로 남겨.
+   이 질문에는 답이나 예시 답안을 절대 달지 마.
+8. 각 아이디어마다 changeHere에 "이 아이디어에서 네가 바꿔 볼 수 있는 곳"을 한 문장으로 알려 줘.
+   학생이 그대로 쓰지 않고 자기 것으로 바꿀 수 있도록 여지를 열어 주는 문장이어야 해.
+9. 너무 추상적이지 않게, 중학생이 머릿속에 그려 볼 수 있을 만큼은 구체적으로.
+   다만 6번을 어기면서까지 구체적으로 만들지는 마.
+10. 이 아이디어들이 최종 답이 아니라는 걸 학생이 알 수 있게, 모든 설명을 "~해 보면 어떨까요?",
+   "~하는 방향을 생각해 볼 수 있어요"처럼 제안하는 말투로 써. 단정하지 마.
+11. 오늘 할 일은 "아이디어 만들기"까지야. 도면을 그리라거나 명세서를 쓰라는 이야기는 하지 마.
+${KOREAN_ONLY}
+12. 모든 문장은 존댓말 해요체("~예요", "~어요")로 통일해.
 
-[응답 형식 - 아래 JSON만 출력]
+[이해를 돕는 그림 요구사항]
+- 이 그림은 아이디어를 글로만 읽었을 때 이해가 어려운 학생을 돕기 위한 보조 자료야.
+  학생이 나중에 직접 그릴 도면이 아니야. 그러니 완성도 높게 그리지 말고, 방향만 알 수 있을 정도로 그려.
+- 시점: 정면이나 대각선에서 본 모습.
+- 표현: 직사각형, 원, 선, 삼각형, 타원 같은 아주 단순한 도형만 사용. 검은색 선만 사용하고 색은 쓰지 마.
+- 핵심 부위에는 짧은 <text> 라벨(예: 버튼, 입구)을 한글로 넣어도 좋아.
+- 크기: viewBox='0 0 200 150'
+- <script>, <foreignObject>, on으로 시작하는 속성(onclick 등), 외부 링크는 절대 넣지 마.
+
+[응답 형식 — 아래 JSON만 출력, 한글만 사용]
 {
   "ideas": [
     {
       "name": "아이디어 이름",
-      "description": "한두 문장으로 된 간단한 설명",
+      "description": "어디를 어떻게 바꾸는 방향인지 한두 문장. 제안하는 말투로",
+      "targetDrawback": "이 아이디어가 겨냥한 단점. 학생이 쓴 표현 그대로",
       "trizPrinciple": {
         "id": 1,
         "name": "쪼개기 (분할)",
-        "applied": "이 발명에서 분할 원리가 어떻게 적용됐는지 한 문장으로 설명"
+        "applied": "이 아이디어에 그 원리가 어떻게 쓰였는지 한 문장"
       },
-      "prototype": "<svg width='200' height='150' viewBox='0 0 200 150' xmlns='http://www.w3.org/2000/svg'>...</svg>"
-    },
-    { "...": "위와 같은 형식으로 총 3개" }
+      "changeHere": "이 아이디어에서 학생이 바꿔 볼 수 있는 곳 한 문장",
+      "openQuestion": "학생이 스스로 정해야 하는 것을 묻는 질문 한 문장",
+      "sketch": "<svg width='200' height='150' viewBox='0 0 200 150' xmlns='http://www.w3.org/2000/svg'>...</svg>"
+    }
   ]
 }
-
-trizPrinciple.id는 1~40 사이의 정수, name은 위 목록의 정확한 이름, applied는 그 기법을 이 아이디어에 어떻게 녹였는지 학생이 알아보기 쉽게 한 문장으로 써 주세요.`
+ideas는 정확히 3개. trizPrinciple.id는 1~40 사이의 정수, name은 위 목록의 정확한 이름.`
 
   const response = await fetch(OPENAI_URL, {
     method: 'POST',
@@ -632,7 +666,107 @@ trizPrinciple.id는 1~40 사이의 정수, name은 위 목록의 정확한 이�
   }
 
   const parsed = parseAiJson(aiText)
-  return parsed.ideas || []
+  return normalizeIdeas(parsed.ideas)
+}
+
+/** 학생이 한 칸에 여러 줄로 적은 내용을 항목별로 나눈다. */
+function splitStudentItems(text) {
+  return String(text || '')
+    .split(/\r?\n/)
+    .map((line) => line.replace(/^\s*(?:[-•*·]|\d+[.)])\s*/, '').trim())
+    .filter(Boolean)
+}
+
+/** 2차시 명세서 분석 결과를 아이디어 프롬프트용 요약으로 정리한다. */
+function buildIdeaSummary(analysis) {
+  if (!analysis || typeof analysis !== 'object') return null
+
+  const text = (value) => String(value ?? '').trim()
+  const list = (value) => {
+    if (Array.isArray(value)) return value.map((v) => text(v)).filter(Boolean)
+    return splitStudentItems(value)
+  }
+
+  const components = list(analysis.components)
+
+  return {
+    title: text(analysis.title) || text(analysis.patentName),
+    field: text(analysis.field),
+    background: text(analysis.background),
+    problem: text(analysis.problem),
+    solution: text(analysis.solution),
+    components: components.length > 0 ? components : list(analysis.features),
+  }
+}
+
+/** 2차시에서 학생이 적어 둔 아쉬운 점을 단점 칸에 미리 옮겨 준다. */
+function prefillDrawbacksFromSpecExplore() {
+  if (!drawbackInput || drawbackInput.value.trim()) return
+
+  let items = []
+  try {
+    const raw = localStorage.getItem(SPEC_EXPLORE_REFLECTION_KEY)
+    if (!raw) return
+    items = splitStudentItems(JSON.parse(raw)?.improvements)
+  } catch {
+    return
+  }
+
+  if (items.length === 0) return
+
+  drawbackInput.value = items.join('\n')
+  if (drawbackPrefillNote) drawbackPrefillNote.hidden = false
+}
+
+/** 2차시 「스스로 따져 보기」에서 학생이 남긴 질문과 답변을 읽어 온다. */
+function readCriticalText() {
+  const empty = '(작성하지 않음)'
+  try {
+    const raw = localStorage.getItem(SPEC_SELF_CHECK_KEY)
+    if (!raw) return empty
+    const parsed = JSON.parse(raw)
+    if (!Array.isArray(parsed)) return empty
+
+    const lines = parsed
+      .filter((q) => q && String(q.question || '').trim())
+      .map((q, i) => {
+        const focus = String(q.focus || '').trim()
+        const question = String(q.question).trim()
+        const answer = String(q.answer || '').trim() || '(답하지 않음)'
+        return `${i + 1}. ${focus ? `[${focus}] ` : ''}${question}\n   내 생각: ${answer}`
+      })
+
+    return lines.length > 0 ? lines.join('\n') : empty
+  } catch {
+    return empty
+  }
+}
+
+/** 그림은 보조 자료라 위험한 태그·속성이 섞이면 통째로 버린다. */
+function sanitizeSketchSvg(raw) {
+  const svg = String(raw || '').trim()
+  if (!svg) return ''
+  if (/<\s*(script|foreignobject|iframe|image|use)\b/i.test(svg)) return ''
+  if (/\son[a-z]+\s*=/i.test(svg)) return ''
+  if (/(href|xlink:href)\s*=/i.test(svg)) return ''
+  return svg
+}
+
+function normalizeIdeas(rawIdeas) {
+  if (!Array.isArray(rawIdeas)) return []
+
+  return rawIdeas
+    .filter((idea) => idea && typeof idea === 'object')
+    .slice(0, 3)
+    .map((idea) => ({
+      ...idea,
+      name: String(idea.name || '').trim(),
+      description: String(idea.description || '').trim(),
+      targetDrawback: String(idea.targetDrawback || '').trim(),
+      changeHere: String(idea.changeHere || '').trim(),
+      openQuestion: String(idea.openQuestion || '').trim(),
+      sketch: sanitizeSketchSvg(idea.sketch || idea.prototype),
+    }))
 }
 
 // 키워드 파싱 유틸리티 (쉼표로 구분된 3개의 단어를 기대)
@@ -689,27 +823,25 @@ function displayIdeas(ideas) {
   ideasContainer.innerHTML = ideas
     .map(
       (idea, index) => {
-        // 프로토타입 SVG가 있으면 표시, 없으면 기본 플레이스홀더
-        let prototypeHtml = ''
-        if (idea.prototype && idea.prototype.trim()) {
-          // SVG 코드가 있으면 그대로 사용 (sanitize하지 않음 - SVG는 안전한 HTML)
-          const svgContent = idea.prototype.trim()
-          // SVG 태그가 포함되어 있는지 확인
-          if (svgContent.includes('<svg') || svgContent.includes('<SVG')) {
-            prototypeHtml = `<div class="idea-prototype">${svgContent}</div>`
+        // 이해를 돕는 그림이 있으면 표시, 없으면 기본 플레이스홀더
+        const sketch = sanitizeSketchSvg(idea.sketch || idea.prototype)
+        let sketchHtml = ''
+        if (sketch) {
+          // SVG 태그가 없으면 감싸기
+          if (sketch.includes('<svg') || sketch.includes('<SVG')) {
+            sketchHtml = `<div class="idea-prototype">${sketch}</div>`
           } else {
-            // SVG 태그가 없으면 감싸기
-            prototypeHtml = `<div class="idea-prototype"><svg width="200" height="150" viewBox="0 0 200 150" xmlns="http://www.w3.org/2000/svg">${svgContent}</svg></div>`
+            sketchHtml = `<div class="idea-prototype"><svg width="200" height="150" viewBox="0 0 200 150" xmlns="http://www.w3.org/2000/svg">${sketch}</svg></div>`
           }
         } else {
-          prototypeHtml = `<div class="idea-prototype-placeholder">
+          sketchHtml = `<div class="idea-prototype-placeholder">
               <svg width="200" height="150" viewBox="0 0 200 150" xmlns="http://www.w3.org/2000/svg">
                 <rect x="20" y="20" width="160" height="110" fill="none" stroke="#e2e8f0" stroke-width="2" stroke-dasharray="5,5"/>
-                <text x="100" y="80" text-anchor="middle" fill="#94a3b8" font-size="14" font-family="Arial">프로토타입 이미지</text>
+                <text x="100" y="80" text-anchor="middle" fill="#94a3b8" font-size="14" font-family="Arial">이해를 돕는 그림</text>
               </svg>
             </div>`
         }
-        
+
         const trizHtml = renderTrizBadge(idea.trizPrinciple)
 
         return `
@@ -717,11 +849,26 @@ function displayIdeas(ideas) {
       <div class="idea-header">
         <h3>${sanitize(idea.name)}</h3>
       </div>
-      ${prototypeHtml}
+      ${sketchHtml}
+      ${
+        idea.targetDrawback
+          ? `<p class="idea-target-drawback"><strong>겨냥한 단점</strong> ${sanitize(idea.targetDrawback)}</p>`
+          : ''
+      }
       ${trizHtml}
       <div class="idea-description">
         <p>${sanitize(idea.description)}</p>
       </div>
+      ${
+        idea.changeHere
+          ? `<p class="idea-change-here"><strong>여기를 바꿔 볼 수 있어요</strong> ${sanitize(idea.changeHere)}</p>`
+          : ''
+      }
+      ${
+        idea.openQuestion
+          ? `<p class="idea-open-question"><strong>스스로 정해 볼 것</strong> ${sanitize(idea.openQuestion)}</p>`
+          : ''
+      }
       <button class="btn-secondary select-idea-btn" data-index="${index}">이 아이디어 선택하기</button>
     </div>
   `
@@ -1258,8 +1405,19 @@ async function chatWithAI(apiKey, idea, message, history, currentTurn) {
     ? `\n이 아이디어는 TRIZ 발명 기법 "${idea.trizPrinciple.id ?? ''} ${idea.trizPrinciple.name}"을(를) 적용해 만들어졌어요. 적용 방식: ${idea.trizPrinciple.applied || '명시되지 않음'}\n학생이 이 원리를 이해하면서 아이디어를 구체화하도록 자연스럽게 연결해 답변해 주세요.`
     : ''
 
+  const openContext = [
+    idea.targetDrawback ? `이 아이디어가 겨냥한 단점: ${idea.targetDrawback}` : '',
+    idea.changeHere ? `학생이 바꿔 볼 수 있는 곳: ${idea.changeHere}` : '',
+    idea.openQuestion
+      ? `학생이 스스로 정해야 할 것: ${idea.openQuestion}\n이 부분은 학생이 직접 정할 몫이니, 답을 대신 정해 주지 말고 학생이 정하도록 되물어 주세요.`
+      : '',
+  ]
+    .filter(Boolean)
+    .join('\n')
+
   let systemPrompt = `당신은 발명 도우미 역할을 하는 교사입니다.
 학생이 선택한 아이디어 "${idea.name}" (${idea.description})를 이해하고 발전시키도록 도와주세요.${trizContext}
+${openContext ? `\n${openContext}\n` : ''}
 
 말투는 반드시 해요체로 통일해 주세요. 문장은 가능한 한 '~요', '~예요', '~어요', '~죠', '~네요'처럼 부드럽게 끝내고,
 '~합니다', '~됩니다'처럼 딱딱한 보고서체·하오체 느낌은 피해 주세요.
@@ -1784,4 +1942,5 @@ listenForWorkbenchFlushRequest(flushStudentIdeaSessionToStorage)
 
 if (generateIdeasBtn) {
   tryRestoreStudentIdeaSession()
+  prefillDrawbacksFromSpecExplore()
 }
